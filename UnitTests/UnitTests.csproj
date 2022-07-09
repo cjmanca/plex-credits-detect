@@ -17,7 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\plex-credit-detect\plex-credits-detect.csproj" />
+    <ProjectReference Include="..\plex-credits-detect\plex-credits-detect.csproj" />
   </ItemGroup>
 
 </Project>
