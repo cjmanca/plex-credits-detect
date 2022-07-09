@@ -25,20 +25,20 @@ namespace plexCreditsDetect.Tests
             File.Delete(tmpFilePath);
             Directory.CreateDirectory(tmpFilePath);
 
-            settingsDict.Add(Path.GetFullPath(settings.globalSettingsPath + "\\"), "" +
+            settingsDict.Add(Path.GetFullPath(settings.globalSettingsPath + Path.DirectorySeparatorChar), "" +
                 "[default]" + Environment.NewLine +
                 "detectionStart = 0.1" + Environment.NewLine +
                 "detectionEnd = 0.9" + Environment.NewLine +
                 "maximumSegments = 98" + Environment.NewLine +
                 "minimumFilesForMatch = 3" + Environment.NewLine +
                 "[directories]" + Environment.NewLine +
-                "d1 = C:\\Videos" + Environment.NewLine);
+                "d1 = " + Path.GetFullPath(Path.DirectorySeparatorChar + "Videos" + Path.DirectorySeparatorChar) + Environment.NewLine);
 
-            settingsDict.Add(Path.GetFullPath("C:\\Videos\\"), "" +
+            settingsDict.Add(Path.GetFullPath(Path.DirectorySeparatorChar + "Videos" + Path.DirectorySeparatorChar), "" +
                 "[default]" + Environment.NewLine +
                 "detectionStart = 0.3" + Environment.NewLine);
 
-            settingsDict.Add(Path.GetFullPath("C:\\Videos\\Some Series\\"), "" +
+            settingsDict.Add(Path.GetFullPath(Path.Combine(Path.DirectorySeparatorChar + "Videos", "Some Series") + Path.DirectorySeparatorChar), "" +
                 "[default]" + Environment.NewLine +
                 "detectionEnd = 0.7" + Environment.NewLine);
 
@@ -48,7 +48,7 @@ namespace plexCreditsDetect.Tests
 
         public IFileProvider GetFakeFileProvider(string path)
         {
-            path = Path.GetFullPath(path + "\\");
+            path = Path.GetFullPath(path + Path.DirectorySeparatorChar);
             if (settingsDict.ContainsKey(path))
             {
                 File.WriteAllText(tmpFile, settingsDict[path]);
@@ -63,7 +63,7 @@ namespace plexCreditsDetect.Tests
         [Test]
         public void TestHierarchicalLoad()
         {
-            settings.Load("C:\\Videos\\Some Series\\");
+            settings.Load(Path.GetFullPath(Path.Combine(Path.DirectorySeparatorChar + "Videos", "Some Series") + Path.DirectorySeparatorChar));
 
             Assert.That(settings.detectionStart, Is.EqualTo(0.3));
             Assert.That(settings.detectionEnd, Is.EqualTo(0.7));
