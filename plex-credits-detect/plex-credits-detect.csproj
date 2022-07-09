@@ -8,7 +8,16 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="resources\fingerprint.ini" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="resources\fingerprint.ini" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="KdSoft.Lmdb" Version="2.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Ini" Version="6.0.0" />
     <PackageReference Include="SoundFingerprinting" Version="8.12.0" />
     <PackageReference Include="SoundFingerprinting.Emy" Version="8.12.1" />
     <PackageReference Include="SoundFingerprinting.Extensions.LMDB" Version="8.7.0" />
