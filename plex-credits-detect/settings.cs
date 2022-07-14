@@ -11,14 +11,22 @@ namespace plexCreditsDetect
 {
     public class Settings : ICloneable
     {
-        public string globalSettingsPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "plex-credits-detect");
+        public string globalSettingsPath => Program.PathCombine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "plex-credits-detect");
 
-        public List<string> paths { get; set; } = new List<string>();
+        public List<string> paths = new List<string>();
+        public string databasePath = "";
+        public string PlexDatabasePath = "";
 
-        public double detectionStart { get; set; } = 0.0;
-        public double detectionEnd { get; set; } = 0.6;
-        public int maximumSegments { get; set; } = 99;
-        public int minimumFilesForMatch { get; set; } = 2;
+        public int startOfEpisodeMatchCount = 1;
+        public int endOfEpisodeMatchCount = 1;
+        public int longestMatchCount = 0;
+
+        public int maximumMatches => startOfEpisodeMatchCount + endOfEpisodeMatchCount + longestMatchCount;
+
+        public int audioAccuracy = 4;
+        public int videoAccuracy = 4;
+        public double PermittedGap = 3;
+        public double minimumMatchSeconds = 20;
 
         public delegate IFileProvider FileProviderDelegate(string path);
 
@@ -29,71 +37,17 @@ namespace plexCreditsDetect
             Settings ret = new Settings();
 
             ret.paths = paths.ToList();
-            ret.detectionStart = detectionStart;
-            ret.detectionEnd = detectionEnd;
-            ret.maximumSegments = maximumSegments;
-            ret.minimumFilesForMatch = minimumFilesForMatch;
+            ret.databasePath = databasePath;
+
+            ret.startOfEpisodeMatchCount = startOfEpisodeMatchCount;
+            ret.endOfEpisodeMatchCount = endOfEpisodeMatchCount;
+            ret.longestMatchCount = longestMatchCount;
+
+            ret.audioAccuracy = audioAccuracy;
+            ret.PermittedGap = PermittedGap;
+            ret.minimumMatchSeconds = minimumMatchSeconds;
 
             return ret;
-        }
-
-
-        public Settings()
-        {
-            FileProvider = GetFileProvider;
-        }
-
-
-        public bool CheckGlobalSettingFile()
-        {
-            if (!File.Exists(Path.Combine(globalSettingsPath, "fingerprint.ini")))
-            {
-                var assembly = Assembly.GetExecutingAssembly();
-
-                using (Stream stream = assembly.GetManifestResourceStream("plexCreditsDetect.resources.fingerprint.ini"))
-                {
-                    using (StreamReader reader = new StreamReader(stream))
-                    {
-                        File.WriteAllText(Path.Combine(globalSettingsPath, "fingerprint.ini"), reader.ReadToEnd());
-
-                        Console.WriteLine("Created default config file: " + Path.Combine(globalSettingsPath, "fingerprint.ini"));
-
-                        Program.Exit();
-                        return false;
-                    }
-                }
-            }
-
-            return true;
-        }
-
-        private IFileProvider GetFileProvider(string path)
-        {
-            return new PhysicalFileProvider(path);
-        }
-
-
-        public void Load(string path = "")
-        {
-
-            LoadSingle(globalSettingsPath);
-
-            List<string> pathParts = new List<string>();
-            DirectoryInfo di = new DirectoryInfo(path);
-
-            while (di != null)
-            {
-                pathParts.Add(di.FullName);
-                di = di.Parent;
-            }
-
-            pathParts.Reverse();
-
-            foreach (var part in pathParts)
-            {
-                LoadSingle(part);
-            }
-
         }
 
         private void LoadSingle(string path)
@@ -113,43 +67,22 @@ namespace plexCreditsDetect
 
 
             string temp;
-            double dTemp;
-            int iTemp;
 
 
-            if (iniProvider.TryGet("default:detectionStart", out temp))
-            {
-                if (double.TryParse(temp, out dTemp))
-                {
-                    detectionStart = dTemp;
-                }
-            }
-            if (iniProvider.TryGet("default:detectionEnd", out temp))
-            {
-                if (double.TryParse(temp, out dTemp))
-                {
-                    detectionEnd = dTemp;
-                }
-            }
+            TryGet(iniProvider, "default:startOfEpisodeMatchCount", ref startOfEpisodeMatchCount);
+            TryGet(iniProvider, "default:endOfEpisodeMatchCount", ref endOfEpisodeMatchCount);
+            TryGet(iniProvider, "default:longestMatchCount", ref longestMatchCount);
 
-            if (iniProvider.TryGet("default:maximumSegments", out temp))
-            {
-                if (int.TryParse(temp, out iTemp))
-                {
-                    maximumSegments = iTemp;
-                }
-            }
+            TryGet(iniProvider, "default:databasePath", ref databasePath);
+            TryGet(iniProvider, "default:PlexDatabasePath", ref PlexDatabasePath);
 
-            if (iniProvider.TryGet("default:minimumFilesForMatch", out temp))
-            {
-                if (int.TryParse(temp, out iTemp))
-                {
-                    minimumFilesForMatch = iTemp;
-                }
-            }
+            TryGet(iniProvider, "default:audioAccuracy", ref audioAccuracy);
+            TryGet(iniProvider, "default:videoAccuracy", ref videoAccuracy);
+            TryGet(iniProvider, "default:PermittedGap", ref PermittedGap);
+            TryGet(iniProvider, "default:minimumMatchSeconds", ref minimumMatchSeconds);
 
 
-            var dirs = iniProvider.GetChildKeys(new List<string>(),"directories");
+            var dirs = iniProvider.GetChildKeys(new List<string>(), "directories");
 
             foreach (var dir in dirs)
             {
@@ -162,5 +95,154 @@ namespace plexCreditsDetect
 
 
         }
+
+
+        public Settings()
+        {
+            FileProvider = GetFileProvider;
+            databasePath = Program.PathCombine(globalSettingsPath, "database");
+        }
+        public Settings(string path)
+        {
+            FileProvider = GetFileProvider;
+            databasePath = Program.PathCombine(globalSettingsPath, "database");
+            Load(path);
+        }
+
+        private IFileProvider GetFileProvider(string path)
+        {
+            return new PhysicalFileProvider(path);
+        }
+
+
+        public bool CheckGlobalSettingFile()
+        {
+            if (!File.Exists(Program.PathCombine(globalSettingsPath, "fingerprint.ini")))
+            {
+                var assembly = Assembly.GetExecutingAssembly();
+
+                using (Stream stream = assembly.GetManifestResourceStream("plexCreditsDetect.resources.fingerprint.ini"))
+                {
+                    using (StreamReader reader = new StreamReader(stream))
+                    {
+
+                        string defaultPlexDataDir = Program.PathCombine(Program.PathCombine(Program.PathCombine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Plex Media Server"), "Plug-in Support"), "Databases");
+
+                        string output = reader.ReadToEnd() + Environment.NewLine +
+                            "databasePath = " + Program.PathCombine(globalSettingsPath, "database") + Environment.NewLine +
+                            "PlexDatabasePath = " + Program.PathCombine(defaultPlexDataDir, "com.plexapp.plugins.library.db");
+
+                        File.WriteAllText(Program.PathCombine(globalSettingsPath, "fingerprint.ini"), output);
+
+                        Console.WriteLine("Created default config file: " + Program.PathCombine(globalSettingsPath, "fingerprint.ini"));
+
+                        Program.Exit();
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        }
+
+        public void Load(string path = "")
+        {
+
+            LoadSingle(globalSettingsPath);
+
+            if (path == "")
+            {
+                return;
+            }
+
+            List<string> pathParts = new List<string>();
+            DirectoryInfo di = new DirectoryInfo(path);
+
+            while (di != null)
+            {
+                pathParts.Add(di.FullName);
+                di = di.Parent;
+            }
+
+            pathParts.Reverse();
+
+            foreach (var part in pathParts)
+            {
+                LoadSingle(part);
+            }
+
+        }
+
+
+        void TryGet<T>(IniConfigurationProvider iniProvider, string key, ref T assign)
+        {
+            if (typeof(int) == assign.GetType())
+            {
+                int tmp = 0;
+                if (TryGetIniInt(iniProvider, key, ref tmp))
+                {
+                    assign = (T)(object)tmp;
+                }
+            }
+            if (typeof(double) == assign.GetType())
+            {
+                double tmp = 0;
+                if (TryGetIniDouble(iniProvider, key, ref tmp))
+                {
+                    assign = (T)(object)tmp;
+                }
+            }
+            if (typeof(string) == assign.GetType())
+            {
+                string tmp = "";
+                if (TryGetIniString(iniProvider, key, ref tmp))
+                {
+                    assign = (T)(object)tmp;
+                }
+            }
+        }
+
+
+        bool TryGetIniInt(IniConfigurationProvider iniProvider, string key, ref int assign)
+        {
+            string temp;
+            int iTemp;
+            if (iniProvider.TryGet(key, out temp))
+            {
+                if (int.TryParse(temp, out iTemp))
+                {
+                    assign = iTemp;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        bool TryGetIniDouble(IniConfigurationProvider iniProvider, string key, ref double assign)
+        {
+            string temp;
+            double dTemp;
+            if (iniProvider.TryGet(key, out temp))
+            {
+                if (double.TryParse(temp, out dTemp))
+                {
+                    assign = dTemp;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        bool TryGetIniString(IniConfigurationProvider iniProvider, string key, ref string assign)
+        {
+            string temp;
+            if (iniProvider.TryGet(key, out temp))
+            {
+                assign = temp;
+                return true;
+            }
+            return false;
+        }
+
     }
 }
