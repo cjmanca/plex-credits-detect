@@ -62,9 +62,9 @@ namespace plexCreditsDetect.Database
             }
         }
 
-        public AVHashes GetTrackHash(string id)
+        public AVHashes GetTrackHash(string id, bool isCredits)
         {
-            return modelService.ReadHashesByTrackId(id);
+            return modelService.ReadHashesByTrackId(id + isCredits);
         }
         public Episode GetEpisode(string id)
         {
@@ -76,7 +76,7 @@ namespace plexCreditsDetect.Database
                 throw new InvalidOperationException("Database connection not established");
             }
 
-            var track = modelService.ReadTrackById(id);
+            var track = modelService.ReadTrackById(id); // broken
 
             if (track == null)
             {
@@ -127,12 +127,13 @@ namespace plexCreditsDetect.Database
 
         public void DeleteEpisode(string id)
         {
-            modelService.DeleteTrack(id);
+            modelService.DeleteTrack(id + true.ToString());
+            modelService.DeleteTrack(id + false.ToString());
         }
 
         public void Insert(Episode ep)
         {
-            TrackInfo trackinfo = CreateTrack(ep);
+            TrackInfo trackinfo = CreateTrack(ep, true, 0); // broken right now
 
             if (GetEpisode(trackinfo.Id) == null)
             {
@@ -149,14 +150,14 @@ namespace plexCreditsDetect.Database
             }
         }
 
-        public void InsertHash(Episode ep, AVHashes hashes)
+        public void InsertHash(Episode ep, AVHashes hashes, MediaType avtype, bool isCredits, double start)
         {
             if (modelService == null)
             {
                 throw new InvalidOperationException("Database connection not established");
             }
 
-            TrackInfo trackinfo = CreateTrack(ep);
+            TrackInfo trackinfo = CreateTrack(ep, isCredits, start);
 
             if (GetEpisode(trackinfo.Id) != null)
             {
@@ -165,14 +166,16 @@ namespace plexCreditsDetect.Database
             modelService.Insert(trackinfo, hashes);
         }
 
-        public TrackInfo CreateTrack(Episode ep)
+        public TrackInfo CreateTrack(Episode ep, bool isCredits, double start)
         {
-            return new TrackInfo(ep.id, ep.name, ep.dir, new Dictionary<string, string>()
+            return new TrackInfo(ep.id + isCredits.ToString(), ep.name, ep.dir, new Dictionary<string, string>()
             {
                 { "name", ep.name },
                 { "dir", ep.dir },
                 { "LastWriteTimeUtc", ep.LastWriteTimeUtc.ToFileTimeUtc().ToString() },
                 { "FileSize", ep.FileSize.ToString() },
+                { "start", start.ToString() },
+                { "isCredits", isCredits.ToString() },
                 { "DetectionPending", ep.DetectionPending.ToString() }
             });
         }
@@ -185,6 +188,31 @@ namespace plexCreditsDetect.Database
         public IModelService GetModelService()
         {
             return modelService;
+        }
+
+        public Dictionary<string, Episode> GetPendingDirectories()
+        {
+            Dictionary<string, Episode> episodes = new Dictionary<string, Episode>();
+
+            foreach (var item in detectionNeeded)
+            {
+                if (item.Value.Exists && !episodes.ContainsKey(item.Value.fullDirPath))
+                {
+                    episodes[item.Value.fullDirPath] = item.Value;
+                }
+            }
+
+            return episodes;
+        }
+
+        public void InsertTiming(Episode ep, Episode.Segment segment, bool isPlexIntro)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void DeleteEpisodeTimings(string id)
+        {
+            throw new NotImplementedException();
         }
     }
 }

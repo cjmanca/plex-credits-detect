@@ -37,6 +37,7 @@ namespace plexCreditsDetect.Database
             sb.DataSource = path;
             sb.Version = 3;
             sb.FailIfMissing = true;
+            sb.CacheSize = 0;
 
             sqlite_conn = new SQLiteConnection(sb.ToString());
 
@@ -139,6 +140,13 @@ namespace plexCreditsDetect.Database
                 }
 
                 TagID = result.GetInt64(0);
+
+                if (TagID < 0)
+                {
+                    Console.WriteLine("Couldn't get tag_id from Plex Database. Make sure you've set up intro scanning and Plex has scanned at least one show before turning off Plex's default scanning.");
+                    Program.Exit();
+                    return -1;
+                }
             }
 
             return TagID;
@@ -178,7 +186,7 @@ namespace plexCreditsDetect.Database
             {
                 return;
             }
-            ExecuteDBCommand("DELETE FROM taggings WHERE metadata_item_id = @metadata_item_id AND tag_id = @tag_id;", new Dictionary<string, object>()
+            ExecuteDBCommand("DELETE FROM taggings WHERE `metadata_item_id` = @metadata_item_id AND `tag_id` = @tag_id AND `index` > 0;", new Dictionary<string, object>()
             {
                 { "metadata_item_id", epMetaID },
                 { "tag_id", tagid }
@@ -196,8 +204,8 @@ namespace plexCreditsDetect.Database
             }
 
             ExecuteDBCommand("INSERT INTO taggings " +
-                "(`metadata_item_id`, `tag_id`, `index`, `text`, `time_offset`, `end_time_offset`, `created_at`,      `extra_data`) VALUES " +
-                "(@metadata_item_id,  @tag_id,  @index,  @text,  @time_offset,  @end_time_offset,  CURRENT_TIMESTAMP, @extra_data);", new Dictionary<string, object>()
+                "(`metadata_item_id`, `tag_id`, `index`, `text`, `time_offset`, `end_time_offset`, `thumb_url`, `created_at`,       `extra_data`) VALUES " +
+                "(@metadata_item_id,  @tag_id,  @index,  @text,  @time_offset,  @end_time_offset,  @thumb_url,   CURRENT_TIMESTAMP, @extra_data);", new Dictionary<string, object>()
             {
                 { "metadata_item_id", metadata_item_id },
                 { "tag_id", tagid },
@@ -205,9 +213,124 @@ namespace plexCreditsDetect.Database
                 { "text", "intro" },
                 { "time_offset", (int)(segment.start * 1000) },
                 { "end_time_offset", (int)(segment.end * 1000) },
+                { "thumb_url", "" },
                 { "extra_data", "pv%3Aversion=5" }
             });
 
         }
+
+        public int GetNonPlexIntroTimingsCount(long metadata_item_id)
+        {
+            long tagid = GetTagID();
+
+            if (tagid < 0 || metadata_item_id < 0)
+            {
+                return 0;
+            }
+
+            var result = ExecuteDBQuery("SELECT COUNT(*) as counted FROM taggings WHERE `metadata_item_id` = @metadata_item_id AND `tag_id` = @tag_id AND `index` > 0;", new Dictionary<string, object>()
+            {
+                { "metadata_item_id", metadata_item_id },
+                { "tag_id", tagid }
+            });
+
+            if (result == null || !result.HasRows || !result.Read())
+            {
+                return 0;
+            }
+
+            return result.GetInt32(0);
+        }
+
+
+        public Episode.Segment GetPlexIntroTimings(long metadata_item_id)
+        {
+            long tagid = GetTagID();
+
+            if (tagid < 0 || metadata_item_id < 0)
+            {
+                return null;
+            }
+
+            var result = ExecuteDBQuery("SELECT `time_offset`, `end_time_offset` FROM taggings WHERE `metadata_item_id` = @metadata_item_id AND `tag_id` = @tag_id AND `index` = @index LIMIT 1;", new Dictionary<string, object>()
+            {
+                { "metadata_item_id", metadata_item_id },
+                { "tag_id", tagid },
+                { "index", 0 }
+            });
+
+            if (result == null || !result.HasRows || !result.Read())
+            {
+                return null;
+            }
+
+            Episode.Segment segment = new Episode.Segment();
+            segment.isCredits = false;
+
+            segment.start = result.GetDouble(0) / 1000.0;
+            segment.end = result.GetDouble(1) / 1000.0;
+
+            return segment;
+        }
+
+        public class RecentIntroData
+        {
+            public long metadata_item_id;
+            public Episode episode;
+            public Episode.Segment segment = new Episode.Segment();
+            public DateTime created;
+        }
+
+        public List<RecentIntroData> GetRecentPlexIntroTimings(DateTime since)
+        {
+            long tagid = GetTagID();
+
+            if (tagid < 0)
+            {
+                return null;
+            }
+
+            var result = ExecuteDBQuery("SELECT taggings.metadata_item_id as metadata_item_id, media_parts.`file` as `file`, taggings.`time_offset` as `time_offset`, taggings.`end_time_offset` as `end_time_offset`, taggings.`created_at` as `created_at` " +
+                "FROM taggings " +
+                "INNER JOIN media_items ON taggings.metadata_item_id = media_items.metadata_item_id " +
+                "INNER JOIN media_parts ON media_items.id = media_parts.media_item_id " +
+                "WHERE taggings.`created_at` > @created_at AND taggings.`tag_id` = @tag_id AND taggings.`index` = @index;", new Dictionary<string, object>()
+            {
+                { "created_at", since },
+                { "tag_id", tagid },
+                { "index", 0 }
+            });
+
+            if (result == null || !result.HasRows)
+            {
+                return null;
+            }
+
+            List<RecentIntroData> ret = new List<RecentIntroData>();
+
+            while (result.Read())
+            {
+                RecentIntroData data = new RecentIntroData();
+
+                data.metadata_item_id = result.GetInt64(0);
+
+                data.episode = new Episode(result.GetString(1));
+
+                data.segment.start = result.GetDouble(2) / 1000.0;
+                data.segment.end = result.GetDouble(3) / 1000.0;
+                data.segment.isCredits = false;
+
+                data.created = result.GetDateTime(4);
+
+                ret.Add(data);
+            }
+
+            ret.Sort((a, b) => a.created.CompareTo(b.created)); // oldest to newest
+
+
+            return ret;
+        }
+
+
     }
 }

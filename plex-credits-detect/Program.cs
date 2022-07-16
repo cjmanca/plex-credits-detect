@@ -24,15 +24,18 @@ namespace plexCreditsDetect
                 return;
             }
 
-            settings.Load();
-
             Scanner.audioService = new FFmpegAudioService();
+
 
             //Scanner.db = new LMDBFingerprintDatabase(settings.databasePath);
             Scanner.db = new InMemoryFingerprintDatabase(settings.databasePath);
+            Scanner.plexDB.LoadDatabase(settings.PlexDatabasePath);
 
             Scanner scanner = new Scanner();
 
+
+            // Now detecting changes by monitoring Plex adding intros. No longer need to scan for changes ourselves.
+            /*
             foreach (var path in settings.paths)
             {
                 watchers[path] = new FileSystemWatcher(path);
@@ -47,30 +50,33 @@ namespace plexCreditsDetect
                 watchers[path].Filter = "*.*";
                 watchers[path].EnableRaisingEvents = true;
             }
-
+            */
 
             foreach (var path in settings.paths)
             {
-                scanner.CheckDirectory(path);
+                //scanner.CheckDirectory(path);
             }
 
             while (true)
             {
-                Episode ep = Scanner.db.GetOnePendingEpisode();
 
-                while (ep != null)
+                scanner.CheckForNewPlexIntros();
+
+                var episodes = Scanner.db.GetPendingDirectories();
+
+                if (episodes != null)
                 {
-                    scanner.ScanDirectory(ep.fullDirPath);
-
-                    Thread.Sleep(1000);
-
-                    ep = Scanner.db.GetOnePendingEpisode();
+                    foreach (var item in episodes)
+                    {
+                        scanner.ScanDirectory(item.Key);
+                    }
                 }
 
-                Thread.Sleep(10000);
+                Thread.Sleep(60000);
             }
 
             Scanner.db.CloseDatabase();
+            Scanner.plexDB.CloseDatabase();
         }
 
         private static void File_Renamed(object sender, RenamedEventArgs e)
@@ -159,7 +165,18 @@ namespace plexCreditsDetect
         {
             try
             {
-                Scanner.db.CloseDatabase();
+                if (Scanner.db != null)
+                {
+                    Scanner.db.CloseDatabase();
+                }
+            }
+            catch { }
+            try
+            {
+                if (Scanner.plexDB != null)
+                {
+                    Scanner.plexDB.CloseDatabase();
+                }
             }
             catch { }
             Environment.Exit(0);

@@ -27,20 +27,20 @@ namespace plexCreditsDetect.Tests
 
             settingsDict.Add(Path.GetFullPath(settings.globalSettingsPath + Path.DirectorySeparatorChar), "" +
                 "[default]" + Environment.NewLine +
-                "detectionStart = 0.1" + Environment.NewLine +
-                "detectionEnd = 0.9" + Environment.NewLine +
-                "maximumSegments = 98" + Environment.NewLine +
-                "minimumFilesForMatch = 3" + Environment.NewLine +
+                "introStart = 0.1" + Environment.NewLine +
+                "introEnd = 0.9" + Environment.NewLine +
+                "introMatchCount = 0" + Environment.NewLine +
+                "creditsMatchCount = 1" + Environment.NewLine +
                 "[directories]" + Environment.NewLine +
                 "d1 = " + Path.GetFullPath(Path.DirectorySeparatorChar + "Videos" + Path.DirectorySeparatorChar) + Environment.NewLine);
 
             settingsDict.Add(Path.GetFullPath(Path.DirectorySeparatorChar + "Videos" + Path.DirectorySeparatorChar), "" +
                 "[default]" + Environment.NewLine +
-                "detectionStart = 0.3" + Environment.NewLine);
+                "introStart = 0.3" + Environment.NewLine);
 
             settingsDict.Add(Path.GetFullPath(Path.Combine(Path.DirectorySeparatorChar + "Videos", "Some Series") + Path.DirectorySeparatorChar), "" +
                 "[default]" + Environment.NewLine +
-                "detectionEnd = 0.7" + Environment.NewLine);
+                "introEnd = 0.7" + Environment.NewLine);
 
             settings.FileProvider = GetFakeFileProvider;
 
@@ -65,10 +65,10 @@ namespace plexCreditsDetect.Tests
         {
             settings.Load(Path.GetFullPath(Path.Combine(Path.DirectorySeparatorChar + "Videos", "Some Series") + Path.DirectorySeparatorChar));
 
-            Assert.That(settings.detectionStart, Is.EqualTo(0.3));
-            Assert.That(settings.detectionEnd, Is.EqualTo(0.7));
-            Assert.That(settings.maximumSegments, Is.EqualTo(98));
-            Assert.That(settings.minimumFilesForMatch, Is.EqualTo(3));
+            Assert.That(settings.introStart, Is.EqualTo(0.3));
+            Assert.That(settings.introEnd, Is.EqualTo(0.7));
+            Assert.That(settings.introMatchCount, Is.EqualTo(0));
+            Assert.That(settings.creditsMatchCount, Is.EqualTo(1));
         }
     }
 }

@@ -11,22 +11,47 @@ namespace plexCreditsDetect
 {
     public class Settings : ICloneable
     {
+        public string currentlyLoadedSettingsPath = "";
         public string globalSettingsPath => Program.PathCombine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "plex-credits-detect");
 
         public List<string> paths = new List<string>();
         public string databasePath = "";
         public string PlexDatabasePath = "";
+        public string TempDirectoryPath = "";
+        public string ffmpegPath = "";
 
-        public int startOfEpisodeMatchCount = 1;
-        public int endOfEpisodeMatchCount = 1;
-        public int longestMatchCount = 0;
+        public bool useAudio = true;
+        public bool useVideo = false;
 
-        public int maximumMatches => startOfEpisodeMatchCount + endOfEpisodeMatchCount + longestMatchCount;
+        public int introMatchCount = 0;
+        public int creditsMatchCount = 1;
+        public int maximumMatches => introMatchCount + creditsMatchCount;
 
-        public int audioAccuracy = 4;
-        public int videoAccuracy = 4;
-        public double PermittedGap = 3;
+        public double introStart = 0;
+        public double introEnd = 0.5;
+        public double introMaxSearchPeriod = 15 * 60;
+
+        public double creditsStart = 0.8;
+        public double creditsEnd = 1.0;
+        public double creditsMaxSearchPeriod = 10 * 60;
+
+        public double shiftSegmentBySeconds = 2;
+
         public double minimumMatchSeconds = 20;
+        public double PermittedGap = 5;
+        public double PermittedGapWithMinimumEnclosure = 10;
+
+        public int audioAccuracy = 3;
+        public int stride = 1024;
+        public int sampleRate = 5512;
+        public ushort minFrequency = 318;
+        public ushort maxFrequency = 2750;
+
+        public int videoAccuracy = 2;
+        public double videoSizeDivisor = 50;
+        public int frameRate = 1;
+
+        public bool forceRedetect = false;
 
         public delegate IFileProvider FileProviderDelegate(string path);
 
@@ -38,14 +63,40 @@ namespace plexCreditsDetect
 
             ret.paths = paths.ToList();
             ret.databasePath = databasePath;
+            ret.PlexDatabasePath = PlexDatabasePath;
+            ret.TempDirectoryPath = TempDirectoryPath;
 
-            ret.startOfEpisodeMatchCount = startOfEpisodeMatchCount;
-            ret.endOfEpisodeMatchCount = endOfEpisodeMatchCount;
-            ret.longestMatchCount = longestMatchCount;
+            ret.useAudio = useAudio;
+            ret.useVideo = useVideo;
+
+            ret.introMatchCount = introMatchCount;
+            ret.creditsMatchCount = creditsMatchCount;
+
+            ret.introStart = introStart;
+            ret.introEnd = introEnd;
+            ret.introMaxSearchPeriod = introMaxSearchPeriod;
+
+            ret.creditsStart = creditsStart;
+            ret.creditsEnd = creditsEnd;
+            ret.creditsMaxSearchPeriod = creditsMaxSearchPeriod;
+
+            ret.shiftSegmentBySeconds = shiftSegmentBySeconds;
+
+            ret.minimumMatchSeconds = minimumMatchSeconds;
+            ret.PermittedGap = PermittedGap;
+            ret.PermittedGapWithMinimumEnclosure = PermittedGapWithMinimumEnclosure;
 
             ret.audioAccuracy = audioAccuracy;
-            ret.PermittedGap = PermittedGap;
-            ret.minimumMatchSeconds = minimumMatchSeconds;
+            ret.stride = stride;
+            ret.sampleRate = sampleRate;
+            ret.minFrequency = minFrequency;
+            ret.maxFrequency = maxFrequency;
+
+            ret.videoAccuracy = videoAccuracy;
+            ret.videoSizeDivisor = videoSizeDivisor;
+            ret.frameRate = frameRate;
+
+            ret.forceRedetect = forceRedetect;
 
             return ret;
         }
@@ -59,31 +110,48 @@ namespace plexCreditsDetect
                 return;
             }
 
-            //string userProfilePath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-
             IniConfigurationSource iniConfig = new IniConfigurationSource { Path = "fingerprint.ini", Optional = true, FileProvider = fp };
             IniConfigurationProvider iniProvider = new IniConfigurationProvider(iniConfig);
             iniProvider.Load();
 
-
-            string temp;
-
-
-            TryGet(iniProvider, "default:startOfEpisodeMatchCount", ref startOfEpisodeMatchCount);
-            TryGet(iniProvider, "default:endOfEpisodeMatchCount", ref endOfEpisodeMatchCount);
-            TryGet(iniProvider, "default:longestMatchCount", ref longestMatchCount);
-
             TryGet(iniProvider, "default:databasePath", ref databasePath);
             TryGet(iniProvider, "default:PlexDatabasePath", ref PlexDatabasePath);
+            TryGet(iniProvider, "default:TempDirectoryPath", ref TempDirectoryPath);
+
+            TryGet(iniProvider, "default:useAudio", ref useAudio);
+            TryGet(iniProvider, "default:useVideo", ref useVideo);
+
+            TryGet(iniProvider, "default:introMatchCount", ref introMatchCount);
+            TryGet(iniProvider, "default:creditsMatchCount", ref creditsMatchCount);
+
+            TryGet(iniProvider, "default:introStart", ref introStart);
+            TryGet(iniProvider, "default:introEnd", ref introEnd);
+            TryGet(iniProvider, "default:introMaxSearchPeriod", ref introMaxSearchPeriod);
+
+            TryGet(iniProvider, "default:creditsStart", ref creditsStart);
+            TryGet(iniProvider, "default:creditsEnd", ref creditsEnd);
+            TryGet(iniProvider, "default:creditsMaxSearchPeriod", ref creditsMaxSearchPeriod);
+
+            TryGet(iniProvider, "default:shiftSegmentBySeconds", ref shiftSegmentBySeconds);
+
+            TryGet(iniProvider, "default:minimumMatchSeconds", ref minimumMatchSeconds);
+            TryGet(iniProvider, "default:PermittedGap", ref PermittedGap);
+            TryGet(iniProvider, "default:PermittedGapWithMinimumEnclosure", ref PermittedGapWithMinimumEnclosure);
 
             TryGet(iniProvider, "default:audioAccuracy", ref audioAccuracy);
+            TryGet(iniProvider, "default:stride", ref stride);
+            TryGet(iniProvider, "default:sampleRate", ref sampleRate);
+            TryGet(iniProvider, "default:minFrequency", ref minFrequency);
+            TryGet(iniProvider, "default:maxFrequency", ref maxFrequency);
+
             TryGet(iniProvider, "default:videoAccuracy", ref videoAccuracy);
-            TryGet(iniProvider, "default:PermittedGap", ref PermittedGap);
-            TryGet(iniProvider, "default:minimumMatchSeconds", ref minimumMatchSeconds);
+            TryGet(iniProvider, "default:videoSizeDivisor", ref videoSizeDivisor);
+            TryGet(iniProvider, "default:frameRate", ref frameRate);
 
+            TryGet(iniProvider, "default:forceRedetect", ref forceRedetect);
 
+            string temp;
             var dirs = iniProvider.GetChildKeys(new List<string>(), "directories");
-
             foreach (var dir in dirs)
             {
                 if (dir.Length > 0 && iniProvider.TryGet("directories:" + dir, out temp))
@@ -91,11 +159,7 @@ namespace plexCreditsDetect
                     paths.Add(temp);
                 }
             }
-
-
-
         }
-
 
         public Settings()
         {
@@ -114,9 +178,12 @@ namespace plexCreditsDetect
             return new PhysicalFileProvider(path);
         }
 
-
         public bool CheckGlobalSettingFile()
         {
+            Directory.CreateDirectory(globalSettingsPath);
+
+            Thread.Sleep(10);
+
             if (!File.Exists(Program.PathCombine(globalSettingsPath, "fingerprint.ini")))
             {
                 var assembly = Assembly.GetExecutingAssembly();
@@ -125,12 +192,12 @@ namespace plexCreditsDetect
                 {
                     using (StreamReader reader = new StreamReader(stream))
                     {
-
                         string defaultPlexDataDir = Program.PathCombine(Program.PathCombine(Program.PathCombine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Plex Media Server"), "Plug-in Support"), "Databases");
 
                         string output = reader.ReadToEnd() + Environment.NewLine +
                             "databasePath = " + Program.PathCombine(globalSettingsPath, "database") + Environment.NewLine +
-                            "PlexDatabasePath = " + Program.PathCombine(defaultPlexDataDir, "com.plexapp.plugins.library.db");
+                            "PlexDatabasePath = " + Program.PathCombine(defaultPlexDataDir, "com.plexapp.plugins.library.db") + Environment.NewLine +
+                            "TempDirectoryPath = " + Program.PathCombine(globalSettingsPath, "temp");
 
                         File.WriteAllText(Program.PathCombine(globalSettingsPath, "fingerprint.ini"), output);
 
@@ -142,11 +209,44 @@ namespace plexCreditsDetect
                 }
             }
 
+            Load();
+
+            if (TempDirectoryPath == "")
+            {
+                Console.WriteLine("TempDirectoryPath not set. Make sure TempDirectoryPath is an empty directory outside of your media paths.");
+                return false;
+            }
+
+            DirectoryInfo d = new DirectoryInfo(TempDirectoryPath);
+            if (d.Parent == null)
+            {
+                Console.WriteLine("TempDirectoryPath appears to be a directory root! This could result in unintended deletion when temp is cleared. Make sure TempDirectoryPath is an empty directory outside of your media paths.");
+                return false;
+            }
+
+            foreach (var p in paths)
+            {
+                if (p.Contains(TempDirectoryPath) || TempDirectoryPath.Contains(p))
+                {
+                    Console.WriteLine("TempDirectoryPath appears to be in your media paths! This could cause unintended issues. Make sure TempDirectoryPath is an empty directory outside of your media paths.");
+                    return false;
+                }
+            }
+
+            Directory.CreateDirectory(databasePath);
+            Directory.CreateDirectory(TempDirectoryPath);
+
+            if (ffmpegPath == "")
+            {
+                ffmpegPath = System.Reflection.Assembly.GetExecutingAssembly().CodeBase;
+            }
+
             return true;
         }
 
         public void Load(string path = "")
         {
+            currentlyLoadedSettingsPath = Path.GetDirectoryName(Path.Combine(path, "nothing"));
 
             LoadSingle(globalSettingsPath);
 
@@ -170,16 +270,30 @@ namespace plexCreditsDetect
             {
                 LoadSingle(part);
             }
-
         }
-
 
         void TryGet<T>(IniConfigurationProvider iniProvider, string key, ref T assign)
         {
+            if (typeof(bool) == assign.GetType())
+            {
+                bool tmp = false;
+                if (TryGetIniBool(iniProvider, key, ref tmp))
+                {
+                    assign = (T)(object)tmp;
+                }
+            }
             if (typeof(int) == assign.GetType())
             {
                 int tmp = 0;
                 if (TryGetIniInt(iniProvider, key, ref tmp))
+                {
+                    assign = (T)(object)tmp;
+                }
+            }
+            if (typeof(ushort) == assign.GetType())
+            {
+                ushort tmp = 0;
+                if (TryGetIniUshort(iniProvider, key, ref tmp))
                 {
                     assign = (T)(object)tmp;
                 }
@@ -202,7 +316,6 @@ namespace plexCreditsDetect
             }
         }
 
-
         bool TryGetIniInt(IniConfigurationProvider iniProvider, string key, ref int assign)
         {
             string temp;
@@ -210,6 +323,21 @@ namespace plexCreditsDetect
             if (iniProvider.TryGet(key, out temp))
             {
                 if (int.TryParse(temp, out iTemp))
+                {
+                    assign = iTemp;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        bool TryGetIniUshort(IniConfigurationProvider iniProvider, string key, ref ushort assign)
+        {
+            string temp;
+            ushort iTemp;
+            if (iniProvider.TryGet(key, out temp))
+            {
+                if (ushort.TryParse(temp, out iTemp))
                 {
                     assign = iTemp;
                     return true;
@@ -244,5 +372,19 @@ namespace plexCreditsDetect
             return false;
         }
 
+        bool TryGetIniBool(IniConfigurationProvider iniProvider, string key, ref bool assign)
+        {
+            string temp;
+            bool dTemp;
+            if (iniProvider.TryGet(key, out temp))
+            {
+                if (bool.TryParse(temp, out dTemp))
+                {
+                    assign = dTemp;
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 }
