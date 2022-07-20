@@ -67,7 +67,7 @@ namespace plexCreditsDetect
 
             string args = $"-y -loglevel error -ss {from_seconds} -i \"{in_filename}\" -to {end_seconds} {noVideo} {noAudio} -sn -dn -c copy -copyts \"{out_filename}\"";
 
-            string output = Execute(Program.PathCombine(Program.settings.ffmpegPath, "ffmpeg.exe"), args);
+            string output = Execute(Program.settings.ffmpegPath, args);
 
             if (output != "")
             {

@@ -199,7 +199,8 @@ namespace plexCreditsDetect
                         string output = reader.ReadToEnd() + Environment.NewLine +
                             "databasePath = " + Program.PathCombine(globalSettingsPath, "database") + Environment.NewLine +
                             "PlexDatabasePath = " + Program.PathCombine(defaultPlexDataDir, "com.plexapp.plugins.library.db") + Environment.NewLine +
-                            "TempDirectoryPath = " + Program.PathCombine(globalSettingsPath, "temp");
+                            "TempDirectoryPath = " + Program.PathCombine(globalSettingsPath, "temp") + Environment.NewLine +
+                            "ffmpegPath = " + Program.PathCombine(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().CodeBase), "ffmpeg.exe");
 
                         File.WriteAllText(Program.PathCombine(globalSettingsPath, "fingerprint.ini"), output);
 
@@ -248,7 +249,7 @@ namespace plexCreditsDetect
 
             if (ffmpegPath == "")
             {
-                ffmpegPath = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().CodeBase);
+                ffmpegPath = Program.PathCombine(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().CodeBase), "ffmpeg.exe");
             }
 
             return true;
