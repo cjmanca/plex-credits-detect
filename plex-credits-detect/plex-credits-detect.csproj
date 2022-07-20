@@ -83,8 +83,4 @@
     </None>
   </ItemGroup>
 
-  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="copy &quot;$(ProjectDir)resources\bin\*.*&quot; &quot;$(OutDir)&quot;&#xD;&#xA;copy &quot;$(ProjectDir)$(OutputPath)*.*&quot; &quot;O:\plex-credits-detect&quot;" />
-  </Target>
-
 </Project>

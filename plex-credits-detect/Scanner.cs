@@ -497,7 +497,7 @@ namespace plexCreditsDetect
 
         }
 
-
+        
         void DoSingleQuery(Settings settings, bool isCredits, Episode ep, MediaType avtype, Episode.Segment plexTimings, Episode.Segments audioSegments, Episode.Segments videoSegments)
         {
             var duration = GetSearchDuration(ep, settings, isCredits);
@@ -652,7 +652,6 @@ namespace plexCreditsDetect
             }
         }
 
-
         public void OutputMatches(IEnumerable<ResultEntry>? results, MediaType mediaType)
         {
             foreach (var resultEntry in results ?? Enumerable.Empty<ResultEntry>())
@@ -708,7 +707,6 @@ namespace plexCreditsDetect
             {
                 Console.WriteLine("CheckDirectory Exception: ", e.Message);
             }
-
         }
 
         public void InvalidateDirectory(string path)
@@ -752,13 +750,8 @@ namespace plexCreditsDetect
 
         public void CheckForNewPlexIntros()
         {
-
             List<PlexDB.RecentIntroData> data = new List<PlexDB.RecentIntroData>();
-
-            List<PlexDB.RecentIntroData> additionalData;
-
             Settings settings = null;
-
             bool firstTime = false;
 
             if (db.lastPlexIntroAdded == DateTime.MinValue)
@@ -770,7 +763,6 @@ namespace plexCreditsDetect
             {
                 //data = plexDB.GetRecentPlexIntroTimings(db.lastPlexIntroAdded);
                 data = plexDB.GetRecentPlexIntroTimingsSingleQuery(db.lastPlexIntroAdded);
-
 
                 if (data == null)
                 {
@@ -795,7 +787,6 @@ namespace plexCreditsDetect
                     {
                         settings = new Settings(item.episode.fullDirPath);
                     }
-
 
                     if (CheckIfFileNeedsScanning(item.episode, settings, true))
                     {
@@ -825,9 +816,7 @@ namespace plexCreditsDetect
                     }
 
                     db.lastPlexIntroAdded = item.created;
-
                 }
-
             } while (data.Any());
         }
     }
