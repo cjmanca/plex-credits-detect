@@ -6,7 +6,23 @@ This doesn't replace the plex intro scanning, but is supplemental to it (and req
 This tool is intended to stay running in the background all the time. It polls the plex database to check for new intro markers once per minute, and if found, will generate credits for those same episodes.
 
 ## ini options
-A default ini file will be generated the first time you run the utility
+A default global ini file will be generated the first time you run the utility.
+
+ini files are read in the directory structure, which can override the default ini. These can be partial (having only one or two entries changed), allowing you to just override what you need for a particular library, show or season.
+
+Given an episode with the path of:
+- C:\media\anime\Overlord\Season 1\Episode 1.mkv
+
+The ini would be read in this order:
+1. Global fingerprint.ini
+2. C:\fingerprint.ini
+3. C:\media\fingerprint.ini
+4. C:\media\anime\fingerprint.ini
+5. C:\media\anime\Overlord\fingerprint.ini
+6. C:\media\anime\Overlord\Season 1\fingerprint.ini
+
+Each ini that is encountered will override any provided options from all previous files. All except the global fingerprint.ini are optional.
+
 ```dosini
 [directories]
 TV = C:\path\to\library
