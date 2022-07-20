@@ -29,14 +29,14 @@ creditsEnd = 1.0 # percentage of show to stop looking for credits
 creditsMaxSearchPeriod = 600 # maximum seconds to look for credits (if smaller than creditsStart - creditsEnd)
 
 shiftSegmentBySeconds = 2 # plex detected intros start about 2 seconds before the intro. If you'd like to reproduce 
-											  # that, you would put a 2 here
+                          # that, you would put a 2 here
 
 minimumMatchSeconds = 20 # the minimum length of a duplicate section to be considered a valid match segment
 PermittedGap = 2 # maximum non-matching seconds to be allowed inside a match
 PermittedGapWithMinimumEnclosure = 5 # when considering combining multiple segments into one larger 
-																	# segment, this is the maximum amount of seconds between them. 
-																	# Each segment must be at least minimumMatchSeconds to be 
-																	# considered for combining.
+                                     # segment, this is the maximum amount of seconds between them. 
+                                     # Each segment must be at least minimumMatchSeconds to be 
+                                     # considered for combining.
 
 # see the soundfingerprint wiki page for more info on these: 
 https://github.com/AddictedCS/soundfingerprinting/wiki/Algorithm-Configuration
@@ -52,8 +52,8 @@ videoSizeDivisor = 50 # 1080x1080 / videoSizeDivisor = video size used for compa
 frameRate = 1 # biggest factor for video fingerprint speed and memory requirements
 
 forceRedetect = false # if this is true, then it will ignore whether the file size matches the database when checking 
-								   # if a redetect is needed. Useful if you change ini settings and want to force a regeneration 
-								   # of the credits. After changing this, you'll need to do a plex dance to force plex to re-detect intros.
+                      # if a redetect is needed. Useful if you change ini settings and want to force a regeneration 
+                      # of the credits. After changing this, you'll need to do a plex dance to force plex to re-detect intros.
 
 databasePath = C:\path\to\database\dir
 PlexDatabasePath = C:\path\to\com.plexapp.plugins.library.db
