@@ -77,7 +77,7 @@ forceRedetect = false # if this is true, then it will ignore whether the file si
 
 databasePath = C:\path\to\database\dir
 PlexDatabasePath = C:\path\to\com.plexapp.plugins.library.db
-ffmpegPath = C:\path\to\ffmpeg\bin
+ffmpegPath = C:\path\to\ffmpeg\bin\ffmpeg.exe
 TempDirectoryPath = C:\path\to\empty\temp\dir
 ```
 
