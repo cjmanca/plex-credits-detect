@@ -169,8 +169,6 @@ namespace plexCreditsDetect.Database
 
             if (result == null || !result.HasRows || !result.Read())
             {
-                Console.WriteLine("Couldn't find episode in Plex database: " + ep.id);
-
                 return -1;
             }
 

@@ -18,11 +18,11 @@ namespace plexCreditsDetect.Database
         public void CloseDatabase();
         public Episode GetEpisode(string id);
         public AVHashes GetTrackHash(string id, bool isCredits);
-        public void DeleteEpisode(string id);
+        public void DeleteEpisode(Episode ep);
         public List<Episode> GetPendingEpisodes();
         public Episode GetOnePendingEpisode();
         public List<string> GetPendingDirectories();
         public void InsertTiming(Episode ep, Episode.Segment segment, bool isPlexIntro);
-        public void DeleteEpisodeTimings(string id);
+        public void DeleteEpisodeTimings(Episode ep);
     }
 }

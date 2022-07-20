@@ -14,8 +14,8 @@ namespace plexCreditsDetect
     internal class Program
     {
         public static Settings settings = new Settings();
-
         static Dictionary<string, FileSystemWatcher> watchers = new Dictionary<string, FileSystemWatcher>();
+        public static bool firstLoop = true;
 
         static void Main(string[] args)
         {
@@ -65,13 +65,13 @@ namespace plexCreditsDetect
 
             Console.WriteLine($"\nSyncing newly added episodes from plex...\n");
 
-            bool first = true;
+            firstLoop = true;
             while (true)
             {
 
                 scanner.CheckForNewPlexIntros();
 
-                if (first)
+                if (firstLoop)
                 {
                     Console.WriteLine($"\nCompiling list of pending seasons...\n");
                 }
@@ -90,7 +90,7 @@ namespace plexCreditsDetect
                     }
                 }
 
-                first = false;
+                firstLoop = false;
 
                 Thread.Sleep(60000);
             }
@@ -106,7 +106,7 @@ namespace plexCreditsDetect
             if (Scanner.IsVideoExtension(e.OldFullPath))
             {
                 ep = new Episode(e.OldFullPath);
-                Scanner.db.DeleteEpisode(ep.id);
+                Scanner.db.DeleteEpisode(ep);
             }
             if (Scanner.IsVideoExtension(e.FullPath))
             {
@@ -123,7 +123,7 @@ namespace plexCreditsDetect
                 return;
             }
             Episode ep = new Episode(e.FullPath);
-            Scanner.db.DeleteEpisode(ep.id);
+            Scanner.db.DeleteEpisode(ep);
         }
 
         private static void File_Created(object sender, FileSystemEventArgs e)

@@ -125,10 +125,10 @@ namespace plexCreditsDetect.Database
             return detectionNeeded.FirstOrDefault().Value;
         }
 
-        public void DeleteEpisode(string id)
+        public void DeleteEpisode(Episode ep)
         {
-            modelService.DeleteTrack(id + true.ToString());
-            modelService.DeleteTrack(id + false.ToString());
+            modelService.DeleteTrack(ep.id + true.ToString());
+            modelService.DeleteTrack(ep.id + false.ToString());
         }
 
         public void Insert(Episode ep)
@@ -161,7 +161,7 @@ namespace plexCreditsDetect.Database
 
             if (GetEpisode(trackinfo.Id) != null)
             {
-                DeleteEpisode(trackinfo.Id);
+                DeleteEpisode(ep);
             }
             modelService.Insert(trackinfo, hashes);
         }
@@ -210,7 +210,7 @@ namespace plexCreditsDetect.Database
             throw new NotImplementedException();
         }
 
-        public void DeleteEpisodeTimings(string id)
+        public void DeleteEpisodeTimings(Episode ep)
         {
             throw new NotImplementedException();
         }

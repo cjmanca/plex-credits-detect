@@ -288,6 +288,39 @@ namespace plexCreditsDetect.Database
             return ep;
         }
 
+        public List<Episode> GetPendingEpisodesForSeason(string dir)
+        {
+            List<Episode> eps = new List<Episode>();
+
+
+            var result = ExecuteDBQuery("SELECT id, name, dir, LastWriteTimeUtc, FileSize, DetectionPending " +
+                "FROM ScannedMedia WHERE dir = @dir AND DetectionPending = TRUE;", new Dictionary<string, object>()
+            {
+                { "dir", dir }
+            });
+
+            if (result == null || !result.HasRows)
+            {
+                return null;
+            }
+
+            while (result.Read())
+            {
+                string id = result.GetString(0);
+
+                Episode ep = new Episode(id);
+                ep.id = id;
+                ep.name = result.GetString(1);
+                ep.dir = result.GetString(2);
+                ep.LastWriteTimeUtc = DateTime.FromFileTimeUtc(result.GetInt64(3));
+                ep.FileSize = result.GetInt64(4);
+                ep.DetectionPending = result.GetBoolean(5);
+
+                eps.Add(ep);
+            }
+
+            return eps;
+        }
         public List<Episode> GetPendingEpisodes()
         {
             List<Episode> eps = new List<Episode>();
@@ -347,6 +380,7 @@ namespace plexCreditsDetect.Database
         public List<string> GetPendingDirectories()
         {
             List<string> dirs = new List<string>();
+            string dir;
 
             var result = ExecuteDBQuery("SELECT distinct dir " +
                 "FROM ScannedMedia WHERE DetectionPending = TRUE;");
@@ -358,38 +392,42 @@ namespace plexCreditsDetect.Database
 
             while (result.Read())
             {
-                dirs.Add(Program.getFullDirectory(result.GetString(0)));
+                dir = result.GetString(0);
+                if (!Scanner.ignoreDirectories.Contains(dir))
+                {
+                    dirs.Add(Program.getFullDirectory(dir));
+                }
             }
 
             return dirs;
         }
-        public void DeleteEpisode(string id)
+        public void DeleteEpisode(Episode ep)
         {
             ExecuteDBCommand("DELETE FROM ScannedMedia WHERE id = @id;", new Dictionary<string, object>()
             {
-                { "id", id }
+                { "id", ep.id }
             });
             try
             {
-                modelService.DeleteTrack(id + true.ToString());
-                modelService.DeleteTrack(id + false.ToString());
-                DeleteEpisodeTimings(id);
+                modelService.DeleteTrack(ep.id + true.ToString());
+                modelService.DeleteTrack(ep.id + false.ToString());
+                DeleteEpisodeTimings(ep);
             }
             catch { }
         }
 
-        public void DeleteEpisodeTimings(string id)
+        public void DeleteEpisodeTimings(Episode ep)
         {
             ExecuteDBCommand("DELETE FROM ScannedMedia_Timings WHERE ScannedMedia_id = @ScannedMedia_id;", new Dictionary<string, object>()
             {
-                { "ScannedMedia_id", id }
+                { "ScannedMedia_id", ep.id }
             });
         }
-        public void DeleteEpisodePlexTimings(string id)
+        public void DeleteEpisodePlexTimings(Episode ep)
         {
             ExecuteDBCommand("DELETE FROM ScannedMedia_Timings WHERE ScannedMedia_id = @ScannedMedia_id AND is_plex_intro = @is_plex_intro;", new Dictionary<string, object>()
             {
-                { "ScannedMedia_id", id },
+                { "ScannedMedia_id", ep.id },
                 { "is_plex_intro", true }
             });
         }

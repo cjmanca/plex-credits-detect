@@ -14,6 +14,7 @@ namespace plexCreditsDetect
         internal static PlexDB plexDB = new PlexDB();
         internal static InMemoryFingerprintDatabase db = null;
         internal static SoundFingerprinting.Emy.FFmpegAudioService audioService = null;
+        internal static List<string> ignoreDirectories = new List<string>();
 
         private static readonly string[] allowedExtensions = new string[] { ".3g2", ".3gp", ".amv", ".asf", ".avi", ".flv", ".f4v", ".f4p", ".f4a", ".f4b", ".m4v", ".mkv", ".mov", ".qt", ".mp4", ".m4p", ".mpg", ".mp2", ".mpeg", ".mpe", ".mpv", ".m2v", ".mts", ".m2ts", ".ts", ".ogv", ".ogg", ".rm", ".rmvb", ".viv", ".vob", ".webm", ".wmv" };
 
@@ -184,7 +185,7 @@ namespace plexCreditsDetect
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine("FingerprintFile Exception: ", e.Message);
+                    Console.WriteLine("FingerprintFile Exception: ", e.ToString());
                 }
             }
         }
@@ -263,6 +264,7 @@ namespace plexCreditsDetect
             bool firstEntry = true;
             long metaID = 0;
             Episode.Segment plexTimings;
+            int processed = 0;
 
             Dictionary<string, long> metaIDs = new Dictionary<string, long>();
             Dictionary<string, Episode.Segment> allPlexTimings = new Dictionary<string, Episode.Segment>();
@@ -327,10 +329,11 @@ namespace plexCreditsDetect
                 {
                     continue;
                 }
-                try
+
+                ep = new Episode(file);
+                if (ep.Exists)
                 {
-                    ep = new Episode(file);
-                    if (ep.Exists)
+                    try
                     {
                         var info = db.GetEpisode(ep.id);
 
@@ -421,14 +424,14 @@ namespace plexCreditsDetect
 
                             for (int i = 0; i < settings.introMatchCount; i++)
                             {
-                                if (validatedSegments.allSegments.Count > 0)
+                                if (validatedSegments.allSegments.Count > i)
                                 {
                                     ep.segments.AddSegment(validatedSegments.allSegments[i]);
                                 }
                             }
                             for (int i = 0; i < settings.creditsMatchCount; i++)
                             {
-                                if (validatedSegmentsCredits.allSegments.Count > 0)
+                                if (validatedSegmentsCredits.allSegments.Count > i)
                                 {
                                     ep.segments.AddSegment(validatedSegmentsCredits.allSegments[i]);
                                 }
@@ -440,7 +443,7 @@ namespace plexCreditsDetect
                             OutputSegments("Match", ep.segments, settings);
 
 
-                            db.DeleteEpisodeTimings(ep.id);
+                            db.DeleteEpisodeTimings(ep);
                             plexDB.DeleteExistingIntros(metaID);
 
                             if (plexTimings != null)
@@ -476,25 +479,65 @@ namespace plexCreditsDetect
                             */
                         }
 
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine("ScanDirectory Exception: ", e.ToString());
+                    }
 
-
+                    try
+                    {
                         ep.DetectionPending = false;
                         db.Insert(ep);
-
-
+                        processed++;
                     }
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine("ScanDirectory Exception: ", e.Message);
+                    catch (Exception e)
+                    {
+                        Console.WriteLine("ScanDirectory Exception (2): ", e.ToString());
+                    }
+
                 }
             }
 
-            CleanTemp();
-            plexDB.EndActivity();
+            try
+            {
+                if (processed <= 0)
+                {
+                    path = Program.getRelativeDirectory(Program.PathCombine(path, "tmp"));
+                    Console.WriteLine($"Nothing able to be processed in {path}");
+                    List<Episode> pending = db.GetPendingEpisodesForSeason(path);
+
+                    if (pending != null)
+                    {
+                        Console.WriteLine($"List: ");
+                        foreach (var item in pending)
+                        {
+                            Console.Write($"{item.id}: ");
+                            if (plexDB.GetMetadataID(item) < 0) // pending item is no longer in the plex DB. Clean up.
+                            {
+                                Console.WriteLine($" Metadata not found in plex db. Removing.");
+                                db.DeleteEpisodeTimings(item);
+                                db.DeleteEpisode(item);
+                            }
+                            else
+                            {
+                                Console.WriteLine(" Still in Plex DB. Ignoring until next restart.");
+                            }
+                        }
+                    }
+
+                    ignoreDirectories.Add(path);
+                }
+
+                CleanTemp();
+                //plexDB.EndActivity();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("ScanDirectory Exception (3): ", e.ToString());
+            }
 
             Console.WriteLine($"Detection took {sw.Elapsed:g}");
-
         }
 
         
@@ -705,7 +748,7 @@ namespace plexCreditsDetect
             }
             catch (Exception e)
             {
-                Console.WriteLine("CheckDirectory Exception: ", e.Message);
+                Console.WriteLine("CheckDirectory Exception: ", e.ToString());
             }
         }
 
@@ -742,7 +785,7 @@ namespace plexCreditsDetect
             }
             catch (Exception e)
             {
-                Console.WriteLine("CheckDirectory Exception: ", e.Message);
+                Console.WriteLine("CheckDirectory Exception: ", e.ToString());
             }
 
         }
@@ -790,15 +833,16 @@ namespace plexCreditsDetect
 
                     if (CheckIfFileNeedsScanning(item.episode, settings, true))
                     {
-
                         Console.WriteLine("Episode needs scanning: " + item.episode.id);
 
                         item.episode.DetectionPending = true;
 
                         db.Insert(item.episode);
 
-                        db.DeleteEpisodePlexTimings(item.episode.id);
+                        db.DeleteEpisodePlexTimings(item.episode);
                         db.InsertTiming(item.episode, item.segment, true);
+
+                        ignoreDirectories.RemoveAll(x => x == item.episode.dir);
                     }
                     else
                     {
