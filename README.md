@@ -33,25 +33,25 @@ Anime = C:\path\to\library
 # The name before the = sign can be anything (no spaces)
 
 [default]
-useAudio = true # use audio fingerprinting
-useVideo = false # use video frame fingerprinting (slow)
+useAudio = true              # use audio fingerprinting
+useVideo = false             # use video frame fingerprinting (slow)
 
-introMatchCount = 0 # how many extra intro sequences to find, not including the plex detected one
-creditsMatchCount = 1 # how many credits sequences to find
+introMatchCount = 0          # how many extra intro sequences to find, not including the plex detected one
+creditsMatchCount = 1        # how many credits sequences to find
 
-introStart = 0 # percentage of show to start looking for intro at
-introEnd = 0.5 # percentage of show to stop looking for intro
-introMaxSearchPeriod = 900 # maximum seconds to look for intro (if smaller than introEnd - introStart)
+introStart = 0               # percentage of show to start looking for intro at
+introEnd = 0.5               # percentage of show to stop looking for intro
+introMaxSearchPeriod = 900   # maximum seconds to look for intro (if smaller than introEnd - introStart)
 
-creditsStart = 0.7 # percentage of show to start looking for credits at
-creditsEnd = 1.0 # percentage of show to stop looking for credits
+creditsStart = 0.7           # percentage of show to start looking for credits at
+creditsEnd = 1.0             # percentage of show to stop looking for credits
 creditsMaxSearchPeriod = 600 # maximum seconds to look for credits (if smaller than creditsStart-creditsEnd)
 
-shiftSegmentBySeconds = 2 # plex detected intros start about 2 seconds before the intro. If you'd like to  
-                          # reproduce that, you would put a 2 here
+shiftSegmentBySeconds = 2    # plex detected intros start about 2 seconds before the intro. If you'd like to  
+                             # reproduce that, you would put a 2 here
 
 minimumMatchSeconds = 20 # the minimum length of a duplicate section to be considered a valid match segment
-PermittedGap = 2 # maximum non-matching seconds to be allowed inside a match
+PermittedGap = 2                     # maximum non-matching seconds to be allowed inside a match
 PermittedGapWithMinimumEnclosure = 5 # when considering combining multiple segments into one larger 
                                      # segment, this is the maximum amount of seconds between them. 
                                      # Each segment must be at least minimumMatchSeconds to be 
@@ -60,15 +60,15 @@ PermittedGapWithMinimumEnclosure = 5 # when considering combining multiple segme
 # see the soundfingerprint wiki page for more info on these: 
 # https://github.com/AddictedCS/soundfingerprinting/wiki/Algorithm-Configuration
 
-audioAccuracy = 4 # called "ThresholdVotes" on the wiki
+audioAccuracy = 4     # called "ThresholdVotes" on the wiki
 stride = 1024 
 sampleRate = 5512
 minFrequency = 100
 maxFrequency = 2750
 
-videoAccuracy = 2 # called "ThresholdVotes" on the wiki
+videoAccuracy = 2     # called "ThresholdVotes" on the wiki
 videoSizeDivisor = 50 # 1080x1080 / videoSizeDivisor = video size used for comparisons
-frameRate = 1 # biggest factor for video fingerprint speed and memory requirements
+frameRate = 1         # biggest factor for video fingerprint speed and memory requirements
 
 forceRedetect = false # if this is true, then it will ignore whether the file size matches the database when  
                       # checking if a redetect is needed. Useful if you change ini settings and want to   
