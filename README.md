@@ -5,6 +5,8 @@ This doesn't replace the plex intro scanning, but is supplemental to it (and req
 
 This tool is intended to stay running in the background all the time. It polls the plex database to check for new intro markers once per minute, and if found, will generate credits for those same episodes.
 
+Make sure you backup your plex database before running! While I've never had an issue - it is modifying the plex db to insert the intro/credit timings, so the possibility of corruption exists.
+
 ## ini options
 A default global ini file will be generated the first time you run the utility.
 
