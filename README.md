@@ -11,7 +11,8 @@ A default ini file will be generated the first time you run the utility
 [directories]
 TV = C:\path\to\library
 Anime = C:\path\to\library
-# place as many of these entries as you'd like for your plex libraries. The name before the = sign can be anything (no spaces)
+# place as many of these entries as you'd like for your plex libraries. 
+# The name before the = sign can be anything (no spaces)
 
 [default]
 useAudio = true # use audio fingerprinting
@@ -26,10 +27,10 @@ introMaxSearchPeriod = 900 # maximum seconds to look for intro (if smaller than 
 
 creditsStart = 0.7 # percentage of show to start looking for credits at
 creditsEnd = 1.0 # percentage of show to stop looking for credits
-creditsMaxSearchPeriod = 600 # maximum seconds to look for credits (if smaller than creditsStart - creditsEnd)
+creditsMaxSearchPeriod = 600 # maximum seconds to look for credits (if smaller than creditsStart-creditsEnd)
 
-shiftSegmentBySeconds = 2 # plex detected intros start about 2 seconds before the intro. If you'd like to reproduce 
-                          # that, you would put a 2 here
+shiftSegmentBySeconds = 2 # plex detected intros start about 2 seconds before the intro. If you'd like to  
+                          # reproduce that, you would put a 2 here
 
 minimumMatchSeconds = 20 # the minimum length of a duplicate section to be considered a valid match segment
 PermittedGap = 2 # maximum non-matching seconds to be allowed inside a match
@@ -51,9 +52,10 @@ videoAccuracy = 2 # called "ThresholdVotes" on the wiki
 videoSizeDivisor = 50 # 1080x1080 / videoSizeDivisor = video size used for comparisons
 frameRate = 1 # biggest factor for video fingerprint speed and memory requirements
 
-forceRedetect = false # if this is true, then it will ignore whether the file size matches the database when checking 
-                      # if a redetect is needed. Useful if you change ini settings and want to force a regeneration 
-                      # of the credits. After changing this, you'll need to do a plex dance to force plex to re-detect intros.
+forceRedetect = false # if this is true, then it will ignore whether the file size matches the database when  
+                      # checking if a redetect is needed. Useful if you change ini settings and want to   
+                      # force a regeneration of the credits. After changing this, you'll need to do a plex 
+                      # dance to force plex to re-detect intros.
 
 databasePath = C:\path\to\database\dir
 PlexDatabasePath = C:\path\to\com.plexapp.plugins.library.db
