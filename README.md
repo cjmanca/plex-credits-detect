@@ -56,7 +56,7 @@ PermittedGapWithMinimumEnclosure = 5 # when considering combining multiple segme
                                      # considered for combining.
 
 # see the soundfingerprint wiki page for more info on these: 
-https://github.com/AddictedCS/soundfingerprinting/wiki/Algorithm-Configuration
+# https://github.com/AddictedCS/soundfingerprinting/wiki/Algorithm-Configuration
 
 audioAccuracy = 4 # called "ThresholdVotes" on the wiki
 stride = 1024 
