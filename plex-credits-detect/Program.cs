@@ -26,7 +26,6 @@ namespace plexCreditsDetect
 
             Scanner.audioService = new FFmpegAudioService();
 
-
             //Scanner.db = new LMDBFingerprintDatabase(settings.databasePath);
             Scanner.db = new InMemoryFingerprintDatabase(settings.databasePath);
             Scanner.plexDB.LoadDatabase(settings.PlexDatabasePath);
@@ -34,7 +33,13 @@ namespace plexCreditsDetect
             Scanner scanner = new Scanner();
 
 
-            // Now detecting changes by monitoring Plex adding intros. No longer need to scan for changes ourselves.
+            if (Scanner.db.lastPlexIntroAdded == DateTime.MinValue)
+            {
+                Console.WriteLine("First time run detected. The first run can take a long time to build up the database from your plex database. It may appear to be frozen, but give it time.");
+            }
+
+            // Now detecting changes by monitoring Plex adding intros to the plex database.
+            // No longer need to scan/monitor file changes ourselves.
             /*
             foreach (var path in settings.paths)
             {
@@ -50,27 +55,42 @@ namespace plexCreditsDetect
                 watchers[path].Filter = "*.*";
                 watchers[path].EnableRaisingEvents = true;
             }
-            */
 
             foreach (var path in settings.paths)
             {
-                //scanner.CheckDirectory(path);
+                scanner.CheckDirectory(path);
             }
+            */
 
+
+            Console.WriteLine($"\nSyncing newly added episodes from plex...\n");
+
+            bool first = true;
             while (true)
             {
 
                 scanner.CheckForNewPlexIntros();
 
-                var episodes = Scanner.db.GetPendingDirectories();
-
-                if (episodes != null)
+                if (first)
                 {
-                    foreach (var item in episodes)
+                    Console.WriteLine($"\nCompiling list of pending seasons...\n");
+                }
+
+                var dirs = Scanner.db.GetPendingDirectories();
+
+                int count = 0;
+
+                if (dirs != null)
+                {
+                    foreach (var item in dirs)
                     {
-                        scanner.ScanDirectory(item.Key);
+                        count++;
+                        Console.WriteLine($"Processing season {count} of {dirs.Count}");
+                        scanner.ScanDirectory(item);
                     }
                 }
+
+                first = false;
 
                 Thread.Sleep(60000);
             }
@@ -160,25 +180,32 @@ namespace plexCreditsDetect
             return ret;
         }
 
+        public static string getFullDirectory(string path)
+        {
+            foreach (var bPath in Program.settings.paths)
+            {
+                string p = Program.PathCombine(bPath, path);
+
+
+                if (Directory.Exists(p))
+                {
+                    return p;
+                }
+            }
+
+            return path;
+        }
 
         public static void Exit()
         {
-            try
+            if (Scanner.db != null)
             {
-                if (Scanner.db != null)
-                {
-                    Scanner.db.CloseDatabase();
-                }
+                Scanner.db.CloseDatabase();
             }
-            catch { }
-            try
+            if (Scanner.plexDB != null)
             {
-                if (Scanner.plexDB != null)
-                {
-                    Scanner.plexDB.CloseDatabase();
-                }
+                Scanner.plexDB.CloseDatabase();
             }
-            catch { }
             Environment.Exit(0);
         }
     }

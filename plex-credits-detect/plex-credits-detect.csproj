@@ -9,6 +9,7 @@
     <StartupObject>plexCreditsDetect.Program</StartupObject>
     <PlatformTarget>x64</PlatformTarget>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RunPostBuildEvent>OnBuildSuccess</RunPostBuildEvent>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -83,7 +84,7 @@
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="copy $(ProjectDir)\resources\bin\*.* $(OutDir)\" />
+    <Exec Command="copy &quot;$(ProjectDir)resources\bin\*.*&quot; &quot;$(OutDir)&quot;&#xD;&#xA;copy &quot;$(ProjectDir)$(OutputPath)*.*&quot; &quot;O:\plex-credits-detect&quot;" />
   </Target>
 
 </Project>

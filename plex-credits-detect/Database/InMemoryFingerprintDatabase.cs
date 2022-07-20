@@ -250,6 +250,7 @@ namespace plexCreditsDetect.Database
             {
                 sqlite_conn.Close();
                 sqlite_conn.Dispose();
+                sqlite_conn = null;
             }
             catch { }
 
@@ -343,11 +344,11 @@ namespace plexCreditsDetect.Database
             }
         }
 
-        public Dictionary<string, Episode> GetPendingDirectories()
+        public List<string> GetPendingDirectories()
         {
-            Dictionary <string, Episode> episodes = new Dictionary <string, Episode>();
+            List<string> dirs = new List<string>();
 
-            var result = ExecuteDBQuery("SELECT id, name, dir, LastWriteTimeUtc, FileSize, DetectionPending " +
+            var result = ExecuteDBQuery("SELECT distinct dir " +
                 "FROM ScannedMedia WHERE DetectionPending = TRUE;");
 
             if (result == null || !result.HasRows)
@@ -357,23 +358,10 @@ namespace plexCreditsDetect.Database
 
             while (result.Read())
             {
-                string id = result.GetString(0);
-
-                Episode ep = new Episode(id);
-                ep.id = id;
-                ep.name = result.GetString(1);
-                ep.dir = result.GetString(2);
-                ep.LastWriteTimeUtc = DateTime.FromFileTimeUtc(result.GetInt64(3));
-                ep.FileSize = result.GetInt64(4);
-                ep.DetectionPending = result.GetBoolean(5);
-
-                if (ep.Exists && !episodes.ContainsKey(ep.fullDirPath))
-                {
-                    episodes[ep.fullDirPath] = ep;
-                }
+                dirs.Add(Program.getFullDirectory(result.GetString(0)));
             }
 
-            return episodes;
+            return dirs;
         }
         public void DeleteEpisode(string id)
         {

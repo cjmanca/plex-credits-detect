@@ -18,13 +18,13 @@ namespace plexCreditsDetect
         private static readonly string[] allowedExtensions = new string[] { ".3g2", ".3gp", ".amv", ".asf", ".avi", ".flv", ".f4v", ".f4p", ".f4a", ".f4b", ".m4v", ".mkv", ".mov", ".qt", ".mp4", ".m4p", ".mpg", ".mp2", ".mpeg", ".mpe", ".mpv", ".m2v", ".mts", ".m2ts", ".ts", ".ogv", ".ogg", ".rm", ".rmvb", ".viv", ".vob", ".webm", ".wmv" };
 
 
-        internal bool CheckIfFileNeedsScanning(Episode ep, Settings settings)
+        internal bool CheckIfFileNeedsScanning(Episode ep, Settings settings, bool insertCheck = false)
         {
             if (!ep.Exists) // can't scan something that doesn't exist
             {
                 return false;
             }
-
+            
             if (!IsVideoExtension(ep))
             {
                 return false;
@@ -39,7 +39,7 @@ namespace plexCreditsDetect
 
             if (info == null)
             {
-                return false;
+                return insertCheck;
             }
 
             if (ep.FileSize != info.FileSize)
@@ -161,9 +161,9 @@ namespace plexCreditsDetect
                     Console.WriteLine($"Fingerprinting: {ep.id} ({TimeSpan.FromSeconds(start):g} - {TimeSpan.FromSeconds(end):g})");
 
                     string creditSnippet = isCredits ? "credits" : "intro";
-                    string tempFile = Path.Combine(settings.TempDirectoryPath, $"{creditSnippet}.{ep.name}");
+                    string tempFile = Program.PathCombine(settings.TempDirectoryPath, $"{creditSnippet}.{Path.GetFileNameWithoutExtension(ep.name)}.mkv");
 
-                    if (!ffmpeghelper.CutVideo(start, end, ep.fullPath, tempFile))
+                    if (!ffmpeghelper.CutVideo(start, end, ep.fullPath, tempFile, settings.useVideo, settings.useAudio))
                     {
                         return;
                     }
@@ -287,16 +287,23 @@ namespace plexCreditsDetect
                         continue;
                     }
 
-                    if (firstEntry)
-                    {
-                        firstEntry = false;
-                        Console.WriteLine("");
-                    }
 
                     metaID = plexDB.GetMetadataID(ep);
                     metaIDs[ep.id] = metaID;
                     plexTimings = plexDB.GetPlexIntroTimings(metaID);
                     allPlexTimings[ep.id] = plexTimings;
+
+                    if (firstEntry)
+                    {
+                        firstEntry = false;
+                        Console.WriteLine("");
+
+                        // unfortunately, it doesn't seem like the plex server monitors changes to the activities table
+                        // so this doesn't work as I had hoped
+                        //PlexDB.ShowSeasonInfo seasonInfo = plexDB.GetShowAndSeason(metaID);
+                        //plexDB.NewActivity($"{seasonInfo.showName} S{seasonInfo.seasonNumber}");
+                    }
+
 
                     if (settings.introMatchCount > 0)
                     {
@@ -484,6 +491,7 @@ namespace plexCreditsDetect
             }
 
             CleanTemp();
+            plexDB.EndActivity();
 
             Console.WriteLine($"Detection took {sw.Elapsed:g}");
 
@@ -504,11 +512,11 @@ namespace plexCreditsDetect
 
 
             string creditSnippet = isCredits ? "credits" : "intro";
-            string tempFile = Path.Combine(settings.TempDirectoryPath, $"{creditSnippet}.{ep.name}");
+            string tempFile = Program.PathCombine(settings.TempDirectoryPath, $"{creditSnippet}.{Path.GetFileNameWithoutExtension(ep.name)}.mkv");
 
             if (!File.Exists(tempFile))
             {
-                if (!ffmpeghelper.CutVideo(start, end, ep.fullPath, tempFile))
+                if (!ffmpeghelper.CutVideo(start, end, ep.fullPath, tempFile, settings.useVideo, settings.useAudio))
                 {
                     return;
                 }
@@ -745,51 +753,82 @@ namespace plexCreditsDetect
         public void CheckForNewPlexIntros()
         {
 
-            var data = plexDB.GetRecentPlexIntroTimings(db.lastPlexIntroAdded);
+            List<PlexDB.RecentIntroData> data = new List<PlexDB.RecentIntroData>();
 
-            if (data == null)
-            {
-                return;
-            }
+            List<PlexDB.RecentIntroData> additionalData;
 
             Settings settings = null;
 
-            foreach (var item in data)
+            bool firstTime = false;
+
+            if (db.lastPlexIntroAdded == DateTime.MinValue)
             {
-                if (settings == null || settings.currentlyLoadedSettingsPath != item.episode.fullDirPath)
-                {
-                    settings = new Settings(item.episode.fullDirPath);
-                }
-
-
-                if (CheckIfFileNeedsScanning(item.episode, settings))
-                {
-                    item.episode.DetectionPending = true;
-
-                    db.Insert(item.episode);
-
-                    db.DeleteEpisodePlexTimings(item.episode.id);
-                    db.InsertTiming(item.episode, item.segment, true);
-                }
-                else
-                {
-                    var items = db.GetNonPlexTimings(item.episode);
-
-                    if (items != null)
-                    {
-                        plexDB.DeleteExistingIntros(item.metadata_item_id);
-
-                        for (int i = 0; i < items.Count; i++)
-                        {
-                            plexDB.Insert(item.metadata_item_id, items[i], i + 1);
-                        }
-                    }
-                }
-
-                db.lastPlexIntroAdded = item.created;
-
+                firstTime = true;
             }
 
+            do
+            {
+                //data = plexDB.GetRecentPlexIntroTimings(db.lastPlexIntroAdded);
+                data = plexDB.GetRecentPlexIntroTimingsSingleQuery(db.lastPlexIntroAdded);
+
+
+                if (data == null)
+                {
+                    if (firstTime)
+                    {
+                        Console.WriteLine("Data null!");
+                    }
+                    return;
+                }
+
+                Console.WriteLine($"Found new plex intros: {data.Count} \n");
+
+                foreach (var item in data)
+                {
+                    if (item.episode == null)
+                    {
+                        Console.WriteLine("Episode null: " + item.metadata_item_id);
+                        continue;
+                    }
+
+                    if (settings == null || settings.currentlyLoadedSettingsPath != item.episode.fullDirPath)
+                    {
+                        settings = new Settings(item.episode.fullDirPath);
+                    }
+
+
+                    if (CheckIfFileNeedsScanning(item.episode, settings, true))
+                    {
+
+                        Console.WriteLine("Episode needs scanning: " + item.episode.id);
+
+                        item.episode.DetectionPending = true;
+
+                        db.Insert(item.episode);
+
+                        db.DeleteEpisodePlexTimings(item.episode.id);
+                        db.InsertTiming(item.episode, item.segment, true);
+                    }
+                    else
+                    {
+                        var items = db.GetNonPlexTimings(item.episode);
+
+                        if (items != null)
+                        {
+                            plexDB.DeleteExistingIntros(item.metadata_item_id);
+
+                            for (int i = 0; i < items.Count; i++)
+                            {
+                                plexDB.Insert(item.metadata_item_id, items[i], i + 1);
+                            }
+                        }
+                    }
+
+                    db.lastPlexIntroAdded = item.created;
+
+                }
+
+            } while (data.Any());
         }
     }
 }

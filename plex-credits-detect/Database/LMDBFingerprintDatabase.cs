@@ -190,19 +190,19 @@ namespace plexCreditsDetect.Database
             return modelService;
         }
 
-        public Dictionary<string, Episode> GetPendingDirectories()
+        public List<string> GetPendingDirectories()
         {
-            Dictionary<string, Episode> episodes = new Dictionary<string, Episode>();
+            List<string> dirs = new List<string>();
 
             foreach (var item in detectionNeeded)
             {
-                if (item.Value.Exists && !episodes.ContainsKey(item.Value.fullDirPath))
+                if (item.Value.Exists && !dirs.Contains(item.Value.fullDirPath))
                 {
-                    episodes[item.Value.fullDirPath] = item.Value;
+                    dirs.Add(item.Value.fullDirPath);
                 }
             }
 
-            return episodes;
+            return dirs;
         }
 
         public void InsertTiming(Episode ep, Episode.Segment segment, bool isPlexIntro)

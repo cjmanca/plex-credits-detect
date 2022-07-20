@@ -12,6 +12,9 @@ namespace plexCreditsDetect.Database
         SQLiteConnection sqlite_conn = null;
         long TagID = -1;
 
+        long parentActivityID = -1;
+        long currentActivityID = -1;
+
 
         public PlexDB()
         {
@@ -41,20 +44,19 @@ namespace plexCreditsDetect.Database
 
             sqlite_conn = new SQLiteConnection(sb.ToString());
 
-            while (sqlite_conn.State == System.Data.ConnectionState.Closed)
+            try
             {
-                try
-                {
-                    sqlite_conn.Open();
-                    return;
-                }
-                catch (SQLiteException e)
-                {
-                    Console.WriteLine($"LoadDatabase SQLite error code {e.ErrorCode}: {e.Message}");
-                    Thread.Sleep(10);
-                }
+                sqlite_conn.Open();
             }
+            catch (SQLiteException e)
+            {
+                Console.WriteLine($"LoadDatabase SQLite error code {e.ErrorCode}: {e.Message}");
+                Thread.Sleep(10);
+            }
+
+            ExecuteDBCommand("CREATE INDEX IF NOT EXISTS index_taggings_on_created_at ON taggings(created_at);");
         }
+
 
         public int ExecuteDBCommand(string cmd, Dictionary<string, object> p = null)
         {
@@ -120,6 +122,7 @@ namespace plexCreditsDetect.Database
                 {
                     sqlite_conn.Close();
                     sqlite_conn.Dispose();
+                    sqlite_conn = null;
                 }
             }
             catch { }
@@ -172,6 +175,26 @@ namespace plexCreditsDetect.Database
             }
 
             return result.GetInt64(0);
+        }
+
+        public Episode GetEpisodeForMetaID(long metadata_item_id)
+        {
+            var result = ExecuteDBQuery("SELECT file " +
+                "FROM media_parts " +
+                "LEFT JOIN media_items " +
+                "ON media_items.id = media_parts.media_item_id " +
+                "WHERE " +
+                "media_items.metadata_item_id = @metadata_item_id LIMIT 1;", new Dictionary<string, object>()
+                {
+                    { "metadata_item_id", metadata_item_id }
+                });
+
+            if (result == null || !result.HasRows || !result.Read())
+            {
+                return null;
+            }
+
+            return new Episode(result.GetString(0));
         }
 
         public void DeleteExistingIntros(Episode ep)
@@ -281,7 +304,7 @@ namespace plexCreditsDetect.Database
             public DateTime created;
         }
 
-        public List<RecentIntroData> GetRecentPlexIntroTimings(DateTime since)
+        public List<RecentIntroData> GetRecentPlexIntroTimingsSingleQuery(DateTime since)
         {
             long tagid = GetTagID();
 
@@ -294,7 +317,8 @@ namespace plexCreditsDetect.Database
                 "FROM taggings " +
                 "INNER JOIN media_items ON taggings.metadata_item_id = media_items.metadata_item_id " +
                 "INNER JOIN media_parts ON media_items.id = media_parts.media_item_id " +
-                "WHERE taggings.`created_at` > @created_at AND taggings.`tag_id` = @tag_id AND taggings.`index` = @index;", new Dictionary<string, object>()
+                "WHERE taggings.`created_at` > @created_at AND taggings.`tag_id` = @tag_id AND taggings.`index` = @index " +
+                "ORDER BY created_at ASC LIMIT 100;", new Dictionary<string, object>()
             {
                 { "created_at", since },
                 { "tag_id", tagid },
@@ -327,6 +351,186 @@ namespace plexCreditsDetect.Database
 
             ret.Sort((a, b) => a.created.CompareTo(b.created)); // oldest to newest
 
+
+            return ret;
+        }
+        public List<RecentIntroData> GetRecentPlexIntroTimings(DateTime since)
+        {
+            long tagid = GetTagID();
+
+            if (tagid < 0)
+            {
+                return null;
+            }
+
+            var result = ExecuteDBQuery("SELECT metadata_item_id, `time_offset`, `end_time_offset`, `created_at` " +
+                "FROM taggings " +
+                "WHERE `created_at` > @created_at AND `tag_id` = @tag_id AND `index` = @index ORDER BY created_at ASC LIMIT 100;", new Dictionary<string, object>()
+            {
+                { "created_at", since },
+                { "tag_id", tagid },
+                { "index", 0 }
+            });
+
+            if (result == null || !result.HasRows)
+            {
+                return null;
+            }
+
+            List<RecentIntroData> ret = new List<RecentIntroData>();
+
+            while (result.Read())
+            {
+                RecentIntroData data = new RecentIntroData();
+
+                data.metadata_item_id = result.GetInt64(0);
+
+                data.segment.start = result.GetDouble(1) / 1000.0;
+                data.segment.end = result.GetDouble(2) / 1000.0;
+                data.segment.isCredits = false;
+
+                data.created = result.GetDateTime(3);
+
+                data.episode = GetEpisodeForMetaID(data.metadata_item_id);
+
+                ret.Add(data);
+            }
+
+            ret.Sort((a, b) => a.created.CompareTo(b.created)); // oldest to newest
+
+
+            return ret;
+        }
+
+
+
+        public void NewParentActivity()
+        {
+            EndActivity();
+
+            ExecuteDBCommand("INSERT INTO activities " +
+                "(`type`, `title`, `subtitle`, `started_at`, `cancelled`) VALUES " +
+                "(@type,  @title,  @subtitle,  @started_at,  @cancelled);", new Dictionary<string, object>()
+            {
+                { "type", "media.generate.intros" },
+                { "title", "Detecting credits" },
+                { "subtitle", "Detecting credits" },
+                { "started_at", (new DateTimeOffset(DateTime.Now)).ToUnixTimeSeconds() },
+                { "cancelled", 0 }
+            });
+
+            parentActivityID = sqlite_conn.LastInsertRowId;
+        }
+
+        public void NewActivity(string subtitle)
+        {
+            EndActivity();
+
+            if (parentActivityID < 0)
+            {
+                NewParentActivity();
+            }
+
+            ExecuteDBCommand("INSERT INTO activities " +
+                "(`parent_id`, `type`, `title`, `subtitle`, `started_at`, `cancelled`) VALUES " +
+                "(@parent_id,  @type,  @title,  @subtitle,  @started_at,  @cancelled);", new Dictionary<string, object>()
+            {
+                { "parent_id", parentActivityID },
+                { "type", "media.generate.intros" },
+                { "title", "Detecting credits" },
+                { "subtitle", subtitle },
+                { "started_at", (new DateTimeOffset(DateTime.Now)).ToUnixTimeSeconds() },
+                { "cancelled", 0 }
+            });
+
+            currentActivityID = sqlite_conn.LastInsertRowId;
+        }
+
+        public void EndActivity()
+        {
+
+            if (currentActivityID < 0)
+            {
+                return;
+            }
+
+            ExecuteDBCommand(" UPDATE activities SET " +
+                " `finished_at` =  @finished_at " +
+                " WHERE `id` = @id;", new Dictionary<string, object>()
+            {
+                { "finished_at", (new DateTimeOffset(DateTime.Now)).ToUnixTimeSeconds() },
+                { "id", currentActivityID }
+            });
+
+            currentActivityID = -1;
+        }
+
+
+        public class ShowSeasonInfo
+        {
+            public long showID = -1;
+            public long seasonID = -1;
+
+            public string showName = "";
+            public int seasonNumber = -1;
+            public string seasonName = "";
+        }
+
+        private bool GetMetadataItemByID(long metadata_item_id, ShowSeasonInfo ret)
+        {
+            if (metadata_item_id < 0)
+            {
+                return false;
+            }
+
+            var result = ExecuteDBQuery("SELECT `parent_id`, `metadata_type`, `title`, `index` FROM metadata_items WHERE `id` = @id LIMIT 1;", new Dictionary<string, object>()
+            {
+                { "id", metadata_item_id }
+            });
+
+            if (result == null || !result.HasRows || !result.Read())
+            {
+                return false;
+            }
+
+            int type = result.GetInt32(1);
+            string title = result.GetString(2);
+            int index = result.GetInt32(3);
+
+            switch (type)
+            {
+                case 2: // show
+                    ret.showID = metadata_item_id;
+                    ret.showName = title;
+                    break;
+                case 3: // season
+                    ret.showID = result.GetInt32(0);
+                    ret.seasonID = metadata_item_id;
+                    ret.seasonName = title;
+                    ret.seasonNumber = index;
+                    break;
+                case 4: //episode
+                    ret.seasonID = result.GetInt32(0);
+                    break;
+                default:
+                    return false;
+            }
+
+            return true;
+
+        }
+
+        public ShowSeasonInfo GetShowAndSeason(long metadata_item_id)
+        {
+            ShowSeasonInfo ret = new ShowSeasonInfo();
+
+            if (GetMetadataItemByID(metadata_item_id, ret))
+            {
+                if (GetMetadataItemByID(ret.seasonID, ret))
+                {
+                    GetMetadataItemByID(ret.showID, ret);
+                }
+            }
 
             return ret;
         }

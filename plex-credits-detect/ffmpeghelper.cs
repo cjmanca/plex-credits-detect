@@ -35,10 +35,7 @@ namespace plexCreditsDetect
             ffmpeg.avformat_close_input(&pFormatContext);
             ffmpeg.avformat_free_context(pFormatContext);
 
-            
-
             return ret / (double)ffmpeg.AV_TIME_BASE;
-
         }
 
         private static string Execute(string exePath, string parameters)
@@ -63,17 +60,14 @@ namespace plexCreditsDetect
             return result;
         }
 
-        // ported from ffmpeg remuxing.c example and more specifically:
-        // https://stackoverflow.com/questions/20856803/how-to-cut-video-with-ffmpeg-c-api
-        public static bool CutVideo(double from_seconds, double end_seconds, string in_filename, string out_filename)
+        public static bool CutVideo(double from_seconds, double end_seconds, string in_filename, string out_filename, bool includeVideo, bool includeAudio)
         {
-            double duration = end_seconds - from_seconds;
+            string noAudio = includeAudio ? "" : "-an";
+            string noVideo = includeVideo ? "" : "-vn";
 
-            //string args = $"-ss {TimeSpan.FromSeconds(from_seconds):g} -i \"{in_filename}\" -t {TimeSpan.FromSeconds(duration):g} -c copy -copyts \"{out_filename}\"";
+            string args = $"-y -loglevel error -ss {from_seconds} -i \"{in_filename}\" -to {end_seconds} {noVideo} {noAudio} -sn -dn -c copy -copyts \"{out_filename}\"";
 
-            string args = $"-y -loglevel error -ss {from_seconds} -i \"{in_filename}\" -to {end_seconds} -c copy -copyts \"{out_filename}\"";
-
-            string output = Execute(Path.Combine(Program.settings.ffmpegPath, "ffmpeg.exe"), args);
+            string output = Execute(Program.PathCombine(Program.settings.ffmpegPath, "ffmpeg.exe"), args);
 
             if (output != "")
             {
@@ -83,6 +77,9 @@ namespace plexCreditsDetect
             return File.Exists(out_filename);
 
             // The code below fails at avformat_write_header for some videos, but not sure why. Just going to use command line for now
+
+            // ported from ffmpeg remuxing.c example and more specifically:
+            // https://stackoverflow.com/questions/20856803/how-to-cut-video-with-ffmpeg-c-api
 
             AVOutputFormat* ofmt = null;
             AVFormatContext* ifmt_ctx = null;

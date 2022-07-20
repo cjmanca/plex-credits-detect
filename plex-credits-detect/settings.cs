@@ -31,7 +31,7 @@ namespace plexCreditsDetect
         public double introEnd = 0.5;
         public double introMaxSearchPeriod = 15 * 60;
 
-        public double creditsStart = 0.8;
+        public double creditsStart = 0.7;
         public double creditsEnd = 1.0;
         public double creditsMaxSearchPeriod = 10 * 60;
 
@@ -41,11 +41,11 @@ namespace plexCreditsDetect
         public double PermittedGap = 5;
         public double PermittedGapWithMinimumEnclosure = 10;
 
-        public int audioAccuracy = 3;
+        public int audioAccuracy = 4;
         public int stride = 1024;
         public int sampleRate = 5512;
-        public ushort minFrequency = 318;
-        public ushort maxFrequency = 2750;
+        public ushort minFrequency = 200;
+        public ushort maxFrequency = 2000;
 
         public int videoAccuracy = 2;
         public double videoSizeDivisor = 50;
@@ -65,6 +65,7 @@ namespace plexCreditsDetect
             ret.databasePath = databasePath;
             ret.PlexDatabasePath = PlexDatabasePath;
             ret.TempDirectoryPath = TempDirectoryPath;
+            ret.ffmpegPath = ffmpegPath;
 
             ret.useAudio = useAudio;
             ret.useVideo = useVideo;
@@ -117,6 +118,7 @@ namespace plexCreditsDetect
             TryGet(iniProvider, "default:databasePath", ref databasePath);
             TryGet(iniProvider, "default:PlexDatabasePath", ref PlexDatabasePath);
             TryGet(iniProvider, "default:TempDirectoryPath", ref TempDirectoryPath);
+            TryGet(iniProvider, "default:ffmpegPath", ref ffmpegPath);
 
             TryGet(iniProvider, "default:useAudio", ref useAudio);
             TryGet(iniProvider, "default:useVideo", ref useVideo);
@@ -209,6 +211,8 @@ namespace plexCreditsDetect
                 }
             }
 
+            Console.WriteLine("Loading global config file: " + Program.PathCombine(globalSettingsPath, "fingerprint.ini"));
+
             Load();
 
             if (TempDirectoryPath == "")
@@ -226,6 +230,12 @@ namespace plexCreditsDetect
 
             foreach (var p in paths)
             {
+                if (p == @"C:\path\to\library")
+                {
+                    Console.WriteLine("[directories] section not yet configured. Please remove the default example directory and add your own library paths.");
+                    return false;
+                }
+
                 if (p.Contains(TempDirectoryPath) || TempDirectoryPath.Contains(p))
                 {
                     Console.WriteLine("TempDirectoryPath appears to be in your media paths! This could cause unintended issues. Make sure TempDirectoryPath is an empty directory outside of your media paths.");
@@ -238,7 +248,7 @@ namespace plexCreditsDetect
 
             if (ffmpegPath == "")
             {
-                ffmpegPath = System.Reflection.Assembly.GetExecutingAssembly().CodeBase;
+                ffmpegPath = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().CodeBase);
             }
 
             return true;
@@ -246,7 +256,7 @@ namespace plexCreditsDetect
 
         public void Load(string path = "")
         {
-            currentlyLoadedSettingsPath = Path.GetDirectoryName(Path.Combine(path, "nothing"));
+            currentlyLoadedSettingsPath = Path.GetDirectoryName(Program.PathCombine(path, "nothing"));
 
             LoadSingle(globalSettingsPath);
 
