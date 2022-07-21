@@ -816,6 +816,8 @@ namespace plexCreditsDetect
                     return;
                 }
 
+                firstTime = false;
+
                 Console.WriteLine($"Found new plex intros: {data.Count} \n");
 
                 foreach (var item in data)
@@ -846,6 +848,8 @@ namespace plexCreditsDetect
                     }
                     else
                     {
+                        //Console.WriteLine($"Updating timings for episode: {item.episode.fullPath}");
+
                         var items = db.GetNonPlexTimings(item.episode);
 
                         if (items != null)

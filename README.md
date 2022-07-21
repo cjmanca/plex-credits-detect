@@ -7,6 +7,21 @@ This tool is intended to stay running in the background all the time. It polls t
 
 Make sure you backup your plex database before running! While I've never had an issue - it is modifying the plex db to insert the intro/credit timings, so the possibility of corruption exists.
 
+## Installation
+![Docker Pulls][badge-docker-pulls]
+![Downloads][badge-downloads]
+
+[badge-docker-pulls]: https://img.shields.io/docker/pulls/cjmanca/plex-credits-detect?style=flat-square
+[badge-downloads]: https://img.shields.io/github/downloads/cjmanca/plex-credits-detect/total?style=flat-square
+
+```bash
+docker run -d --restart unless-stopped \
+    -v /local/config/location:/config \
+    -v "/path/to/Plex Media Server/Plug-in Support/Databases":/PlexDB \
+    -v /media:/media \
+    -it cjmanca/plex-credits-detect:main
+```
+
 ## ini options
 A default global ini file will be generated the first time you run the utility.
 
@@ -27,10 +42,14 @@ Each ini that is encountered will override any provided options from all previou
 
 ```dosini
 [directories]
-TV = C:\path\to\library
-Anime = C:\path\to\library
-# place as many of these entries as you'd like for your plex libraries. 
-# The name before the = sign can be anything (no spaces)
+C:\path\to\library = C:\path\to\library
+C:\path\credits\scanner\sees = C:\path\plex\server\sees
+
+# Place as many of these entries as you'd like for your plex libraries. 
+# The first path is the local (internal container) path. The second path is the path the Plex server sees.
+# This lets you map paths if the directory structure is different while using docker containers
+# If not using docker containers, just put the same path on both sides of the =
+# These paths must be the same as configured in plex in order to properly locate the files
 
 [default]
 useAudio = true              # use audio fingerprinting

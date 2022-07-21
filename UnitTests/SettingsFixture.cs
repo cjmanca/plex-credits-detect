@@ -1,4 +1,3 @@
-using Microsoft.Extensions.FileProviders;
 using NUnit.Framework;
 using System.IO;
 using System.Linq;
@@ -42,11 +41,10 @@ namespace plexCreditsDetect.Tests
                 "[default]" + Environment.NewLine +
                 "introEnd = 0.7" + Environment.NewLine);
 
-            settings.FileProvider = GetFakeFileProvider;
-
+            settings.pathOverride = OverridePath;
         }
 
-        public IFileProvider GetFakeFileProvider(string path)
+        public string OverridePath(string path)
         {
             path = Path.GetFullPath(path + Path.DirectorySeparatorChar);
             if (settingsDict.ContainsKey(path))
@@ -57,7 +55,7 @@ namespace plexCreditsDetect.Tests
             {
                 File.Delete(tmpFile);
             }
-            return new PhysicalFileProvider(tmpFilePath);
+            return tmpFilePath;
         }
 
         [Test]

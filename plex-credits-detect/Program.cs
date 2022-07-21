@@ -148,21 +148,45 @@ namespace plexCreditsDetect
             Scanner.db.Insert(ep);
         }
 
+        public static string GetWinStylePath(string path)
+        {
+            return path.Replace('/', '\\');
+        }
+        public static string GetLinuxStylePath(string path)
+        {
+            return path.Replace('\\', '/');
+        }
+
+        public static string FixPath(string path)
+        {
+            return path.Replace('\\', Path.DirectorySeparatorChar);
+        }
+
         public static string PathCombine(string p1, string p2)
         {
-            return Path.Combine(p1, p2.Trim(new char[] { '/', '\\', ':' }));
+            return Path.Combine(p1, p2.Trim(new char[] { '/', '\\' }));
         }
 
         public static string getRelativePath(string path)
         {
             string ret = path;
 
-            foreach (string p in settings.paths)
+
+            foreach (var p in settings.paths)
             {
-                ret = ret.Replace(p, "");
+                if (path.StartsWith(p.Key))
+                {
+                    ret = ret.Replace(p.Key, "");
+                    break;
+                }
+                if (path.StartsWith(p.Value))
+                {
+                    ret = ret.Replace(p.Value, "");
+                    break;
+                }
             }
 
-            ret = Path.DirectorySeparatorChar + ret.Trim(new char[] { '/', '\\', ':' });
+            ret = Path.DirectorySeparatorChar + FixPath(ret).Trim(new char[] { '/', '\\' });
 
             return ret;
         }
@@ -170,12 +194,21 @@ namespace plexCreditsDetect
         {
             string ret = Path.GetDirectoryName(path);
 
-            foreach (string p in settings.paths)
+            foreach (var p in settings.paths)
             {
-                ret = ret.Replace(p, "");
+                if (path.StartsWith(p.Key))
+                {
+                    ret = ret.Replace(p.Key, "");
+                    break;
+                }
+                if (path.StartsWith(p.Value))
+                {
+                    ret = ret.Replace(p.Value, "");
+                    break;
+                }
             }
 
-            ret = Path.DirectorySeparatorChar + ret.Trim(new char[] { '/', '\\', ':' });
+            ret = Path.DirectorySeparatorChar + ret.Trim(new char[] { '/', '\\' });
 
             return ret;
         }
@@ -184,8 +217,7 @@ namespace plexCreditsDetect
         {
             foreach (var bPath in Program.settings.paths)
             {
-                string p = Program.PathCombine(bPath, path);
-
+                string p = Program.PathCombine(bPath.Key, path);
 
                 if (Directory.Exists(p))
                 {

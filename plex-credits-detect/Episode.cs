@@ -185,32 +185,24 @@ namespace plexCreditsDetect
 
         void ParseInfoFromPath(string path)
         {
+            path = Program.getRelativePath(path);
             Exists = false;
 
-            FileInfo fi = new FileInfo(path);
+            FileInfo fi;
 
-            if (fi.Exists)
+            foreach (var bPath in Program.settings.paths)
             {
-                Exists = true;
-                LastWriteTimeUtc = fi.LastWriteTimeUtc;
-                FileSize = fi.Length;
-            }
-            else
-            {
-                foreach (var bPath in Program.settings.paths)
+                string p = Program.PathCombine(bPath.Key, path);
+                fi = new FileInfo(p);
+
+                if (fi.Exists)
                 {
-                    string p = Program.PathCombine(bPath, path);
-                    fi = new FileInfo(p);
+                    Exists = true;
+                    path = fi.FullName;
+                    LastWriteTimeUtc = fi.LastWriteTimeUtc;
+                    FileSize = fi.Length;
 
-                    if (fi.Exists)
-                    {
-                        Exists = true;
-                        path = fi.FullName;
-                        LastWriteTimeUtc = fi.LastWriteTimeUtc;
-                        FileSize = fi.Length;
-
-                        break;
-                    }
+                    break;
                 }
             }
 

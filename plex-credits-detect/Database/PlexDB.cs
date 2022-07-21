@@ -50,8 +50,9 @@ namespace plexCreditsDetect.Database
             }
             catch (SQLiteException e)
             {
-                Console.WriteLine($"LoadDatabase SQLite error code {e.ErrorCode}: {e.Message}");
+                Console.WriteLine($"PlexDB LoadDatabase SQLite error code {e.ErrorCode}: {e.Message}");
                 Thread.Sleep(10);
+                Program.Exit();
             }
 
             ExecuteDBCommand("CREATE INDEX IF NOT EXISTS index_taggings_on_created_at ON taggings(created_at);");
@@ -80,7 +81,7 @@ namespace plexCreditsDetect.Database
                 }
                 catch (SQLiteException e)
                 {
-                    Console.WriteLine($"ExecuteDBCommand SQLite error code {e.ErrorCode}: {e.Message}");
+                    Console.WriteLine($"PlexDB ExecuteDBCommand SQLite error code {e.ErrorCode}: {e.Message}");
                     Thread.Sleep(10);
                 }
             }
@@ -108,7 +109,7 @@ namespace plexCreditsDetect.Database
                 }
                 catch (SQLiteException e)
                 {
-                    Console.WriteLine($"ExecuteDBQuery SQLite error code {e.ErrorCode}: {e.Message}");
+                    Console.WriteLine($"PlexDB ExecuteDBQuery SQLite error code {e.ErrorCode}: {e.Message}");
                     Thread.Sleep(10);
                 }
             }
@@ -162,9 +163,10 @@ namespace plexCreditsDetect.Database
                 "LEFT JOIN media_parts " +
                 "ON media_items.id = media_parts.media_item_id " +
                 "WHERE " +
-                "media_parts.file = @file LIMIT 1;", new Dictionary<string, object>()
+                "media_parts.file LIKE @fileWin OR media_parts.file LIKE @fileLin LIMIT 1;", new Dictionary<string, object>()
                 {
-                    { "file", ep.fullPath }
+                    { "fileWin", $"%{Program.GetWinStylePath(ep.id)}" },
+                    { "fileLin", $"%{Program.GetLinuxStylePath(ep.id)}" },
                 });
 
             if (result == null || !result.HasRows || !result.Read())
