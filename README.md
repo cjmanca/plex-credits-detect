@@ -14,6 +14,7 @@ Make sure you backup your plex database before running! While I've never had an 
 [badge-docker-pulls]: https://img.shields.io/docker/pulls/cjmanca/plex-credits-detect?style=flat-square
 [badge-downloads]: https://img.shields.io/github/downloads/cjmanca/plex-credits-detect/total?style=flat-square
 
+### Via Docker
 ```bash
 docker run -d --restart unless-stopped \
     -v /local/config/location:/config \
@@ -21,6 +22,15 @@ docker run -d --restart unless-stopped \
     -v /media:/media \
     -it cjmanca/plex-credits-detect:main
 ```
+
+### Native
+Download a [release](https://github.com/cjmanca/plex-credits-detect/releases "Releases"), extract anywhere you'd like. The first time you run it, a default config file will be generated, and the path to the config file will appear in the console window.
+
+Edit the config file as described below.
+
+Run it again and if configured correctly, it should start working it's way through your library.
+
+This tool is intended to run in the background all the time, monitoring for new episodes and automatically generating credits for them as needed, so you'll want to set it to run at startup.
 
 ## ini options
 A default global ini file will be generated the first time you run the utility.
