@@ -185,7 +185,7 @@ namespace plexCreditsDetect
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine("FingerprintFile Exception: ", e.ToString());
+                    Console.WriteLine("FingerprintFile Exception: " + e.ToString());
                 }
             }
         }
@@ -461,6 +461,8 @@ namespace plexCreditsDetect
                                 plexDB.Insert(metaID, ep.segments.allSegments[i], i + 1);
                             }
 
+                            processed++;
+
                             Console.WriteLine("");
 
                             /*
@@ -482,18 +484,17 @@ namespace plexCreditsDetect
                     }
                     catch (Exception e)
                     {
-                        Console.WriteLine("ScanDirectory Exception: ", e.ToString());
+                        Console.WriteLine("ScanDirectory Exception: " + e.ToString());
                     }
 
                     try
                     {
                         ep.DetectionPending = false;
                         db.Insert(ep);
-                        processed++;
                     }
                     catch (Exception e)
                     {
-                        Console.WriteLine("ScanDirectory Exception (2): ", e.ToString());
+                        Console.WriteLine("ScanDirectory Exception (2): " + e.ToString());
                     }
 
                 }
@@ -534,7 +535,7 @@ namespace plexCreditsDetect
             }
             catch (Exception e)
             {
-                Console.WriteLine("ScanDirectory Exception (3): ", e.ToString());
+                Console.WriteLine("ScanDirectory Exception (3): " + e.ToString());
             }
 
             Console.WriteLine($"Detection took {sw.Elapsed:g}");
@@ -748,7 +749,7 @@ namespace plexCreditsDetect
             }
             catch (Exception e)
             {
-                Console.WriteLine("CheckDirectory Exception: ", e.ToString());
+                Console.WriteLine("CheckDirectory Exception: " + e.ToString());
             }
         }
 
@@ -785,7 +786,7 @@ namespace plexCreditsDetect
             }
             catch (Exception e)
             {
-                Console.WriteLine("CheckDirectory Exception: ", e.ToString());
+                Console.WriteLine("CheckDirectory Exception: " + e.ToString());
             }
 
         }

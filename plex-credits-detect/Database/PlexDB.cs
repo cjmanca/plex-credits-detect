@@ -44,17 +44,23 @@ namespace plexCreditsDetect.Database
 
             sqlite_conn = new SQLiteConnection(sb.ToString());
 
-            try
+            while (true)
             {
-                sqlite_conn.Open();
+                try
+                {
+                    sqlite_conn.Open();
+                    break;
+                }
+                catch (SQLiteException e)
+                {
+                    if ((SQLiteErrorCode)e.ErrorCode != SQLiteErrorCode.Busy)
+                    {
+                        Console.WriteLine($"PlexDB LoadDatabase SQLite error code {e.ErrorCode}: {e.Message}");
+                        Program.Exit();
+                    }
+                    Thread.Sleep(10);
+                }
             }
-            catch (SQLiteException e)
-            {
-                Console.WriteLine($"PlexDB LoadDatabase SQLite error code {e.ErrorCode}: {e.Message}");
-                Thread.Sleep(10);
-                Program.Exit();
-            }
-
             ExecuteDBCommand("CREATE INDEX IF NOT EXISTS index_taggings_on_created_at ON taggings(created_at);");
         }
 
@@ -81,7 +87,10 @@ namespace plexCreditsDetect.Database
                 }
                 catch (SQLiteException e)
                 {
-                    Console.WriteLine($"PlexDB ExecuteDBCommand SQLite error code {e.ErrorCode}: {e.Message}");
+                    if ((SQLiteErrorCode)e.ErrorCode != SQLiteErrorCode.Busy)
+                    {
+                        Console.WriteLine($"PlexDB ExecuteDBCommand SQLite error code {e.ErrorCode}: {e.Message}");
+                    }
                     Thread.Sleep(10);
                 }
             }
@@ -109,7 +118,10 @@ namespace plexCreditsDetect.Database
                 }
                 catch (SQLiteException e)
                 {
-                    Console.WriteLine($"PlexDB ExecuteDBQuery SQLite error code {e.ErrorCode}: {e.Message}");
+                    if ((SQLiteErrorCode)e.ErrorCode != SQLiteErrorCode.Busy)
+                    {
+                        Console.WriteLine($"PlexDB ExecuteDBQuery SQLite error code {e.ErrorCode}: {e.Message}");
+                    }
                     Thread.Sleep(10);
                 }
             }
