@@ -115,9 +115,14 @@ namespace plexCreditsDetect
                 return;
             }
 
-            var parser = new FileIniDataParser();
-            IniData data = parser.ReadFile(iniPath);
 
+            var parser = new FileIniDataParser();
+            IniData data;
+            
+            using (var reader = new StreamReader(iniPath))
+            {
+                data = parser.ReadFile(iniPath, reader.CurrentEncoding);
+            }
 
             TryGet(data, "default", "databasePath", ref databasePath);
             TryGet(data, "default", "PlexDatabasePath", ref PlexDatabasePath);
@@ -201,7 +206,7 @@ namespace plexCreditsDetect
                     {
                         string defaultPlexDataDir = Program.PathCombine(Program.PathCombine(Program.PathCombine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Plex Media Server"), "Plug-in Support"), "Databases");
 
-                        string defaultFfmpegPath = Program.PathCombine(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().CodeBase), "ffmpeg.exe");
+                        string defaultFfmpegPath = Program.PathCombine(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().CodeBase.Replace("file:///","")), "ffmpeg.exe");
 
                         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
                         {
@@ -225,7 +230,7 @@ namespace plexCreditsDetect
                             "TempDirectoryPath = " + Program.PathCombine(globalSettingsPath, "temp") + Environment.NewLine +
                             "ffmpegPath = " + defaultFfmpegPath;
 
-                        File.WriteAllText(Program.PathCombine(globalSettingsPath, "fingerprint.ini"), output);
+                        File.WriteAllText(Program.PathCombine(globalSettingsPath, "fingerprint.ini"), output, Encoding.Unicode);
 
                         Console.WriteLine("Created default config file: " + Program.PathCombine(globalSettingsPath, "fingerprint.ini"));
 
