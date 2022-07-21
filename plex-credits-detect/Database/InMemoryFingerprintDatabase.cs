@@ -55,20 +55,29 @@ namespace plexCreditsDetect.Database
 
             SetupNewScan();
 
-            try
-            {
-                SQLiteConnectionStringBuilder sb = new SQLiteConnectionStringBuilder();
-                sb.DataSource = Program.PathCombine(path, "fingerprintMedia.db");
-                sb.Version = 3;
-                sb.FailIfMissing = false;
+            SQLiteConnectionStringBuilder sb = new SQLiteConnectionStringBuilder();
+            sb.DataSource = Program.PathCombine(path, "fingerprintMedia.db");
+            sb.Version = 3;
+            sb.FailIfMissing = false;
 
-                sqlite_conn = new SQLiteConnection(sb.ToString());
+            sqlite_conn = new SQLiteConnection(sb.ToString());
 
-                sqlite_conn.Open();
-            }
-            catch (Exception ex)
+            while (true)
             {
-                Console.WriteLine("InMemoryFingerprintDatabase.LoadDatabase exception: " + ex.Message);
+                try
+                {
+                    sqlite_conn.Open();
+                    break;
+                }
+                catch (SQLiteException e)
+                {
+                    if ((SQLiteErrorCode)e.ErrorCode != SQLiteErrorCode.Busy)
+                    {
+                        Console.WriteLine($"InMemoryFingerprintDatabase LoadDatabase SQLite error code {e.ErrorCode}: {e.Message}");
+                        Program.Exit();
+                    }
+                    Thread.Sleep(10);
+                }
             }
 
             ExecuteDBCommand("CREATE TABLE IF NOT EXISTS ScannedMedia (id TEXT NOT NULL PRIMARY KEY, name TEXT NOT NULL, dir TEXT NOT NULL, LastWriteTimeUtc INTEGER, FileSize INTEGER, DetectionPending BOOLEAN);");
@@ -176,72 +185,86 @@ namespace plexCreditsDetect.Database
 
         public int ExecuteDBCommand(string cmd, Dictionary<string, object> p = null)
         {
-            try
+            var sqlite_cmd = sqlite_conn.CreateCommand();
+            sqlite_cmd.CommandText = cmd;
+            sqlite_cmd.CommandType = System.Data.CommandType.Text;
+
+            if (p != null)
             {
-                var sqlite_cmd = sqlite_conn.CreateCommand();
-                sqlite_cmd.CommandText = cmd;
-                sqlite_cmd.CommandType = System.Data.CommandType.Text;
-
-                if (p != null)
+                foreach (var row in p)
                 {
-                    foreach(var row in p)
-                    {
-                        sqlite_cmd.Parameters.Add(new SQLiteParameter("@" + row.Key, row.Value));
-                    }
-                }
-
-                return sqlite_cmd.ExecuteNonQuery();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("InMemoryFingerprintDatabase.ExecuteDBCommand exception: " + ex.Message + "" +
-                    " while executing SQL: " + cmd);
-                if (p != null && p.Count > 0)
-                {
-                    Console.WriteLine("With data: ");
-
-                    foreach (var x in p)
-                    {
-                        Console.WriteLine($"{x.Key} = {x.Value}");
-                    }
+                    sqlite_cmd.Parameters.Add(new SQLiteParameter("@" + row.Key, row.Value));
                 }
             }
-            return -1;
+
+            while (true)
+            {
+                try
+                {
+                    return sqlite_cmd.ExecuteNonQuery();
+                }
+                catch (SQLiteException ex)
+                {
+                    if ((SQLiteErrorCode)ex.ErrorCode != SQLiteErrorCode.Busy)
+                    {
+                        Console.WriteLine("InMemoryFingerprintDatabase.ExecuteDBCommand exception: " + ex.Message + "" +
+                            " while executing SQL: " + cmd);
+                        if (p != null && p.Count > 0)
+                        {
+                            Console.WriteLine("With data: ");
+
+                            foreach (var x in p)
+                            {
+                                Console.WriteLine($"{x.Key} = {x.Value}");
+                            }
+                        }
+                        return -1;
+                    }
+                    Thread.Sleep(10);
+                }
+            }
         }
 
         public SQLiteDataReader ExecuteDBQuery(string cmd, Dictionary<string, object> p = null)
         {
-            try
+            var sqlite_cmd = sqlite_conn.CreateCommand();
+            sqlite_cmd.CommandText = cmd;
+            sqlite_cmd.CommandType = System.Data.CommandType.Text;
+
+            if (p != null)
             {
-                var sqlite_cmd = sqlite_conn.CreateCommand();
-                sqlite_cmd.CommandText = cmd;
-                sqlite_cmd.CommandType = System.Data.CommandType.Text;
-
-                if (p != null)
+                foreach (var row in p)
                 {
-                    foreach (var row in p)
-                    {
-                        sqlite_cmd.Parameters.Add(new SQLiteParameter("@" + row.Key, row.Value));
-                    }
-                }
-
-                return sqlite_cmd.ExecuteReader();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("InMemoryFingerprintDatabase.ExecuteDBCommand exception: " + ex.Message + "" +
-                    " while executing SQL: " + cmd);
-                if (p != null && p.Count > 0)
-                {
-                    Console.WriteLine("With data: ");
-
-                    foreach (var x in p)
-                    {
-                        Console.WriteLine($"{x.Key} = {x.Value}");
-                    }
+                    sqlite_cmd.Parameters.Add(new SQLiteParameter("@" + row.Key, row.Value));
                 }
             }
-            return null;
+
+            while (true)
+            {
+                try
+                {
+                    return sqlite_cmd.ExecuteReader();
+                }
+                catch (SQLiteException ex)
+                {
+                    if ((SQLiteErrorCode)ex.ErrorCode != SQLiteErrorCode.Busy)
+                    {
+                        Console.WriteLine("InMemoryFingerprintDatabase.ExecuteDBCommand exception: " + ex.Message + "" +
+                            " while executing SQL: " + cmd);
+                        if (p != null && p.Count > 0)
+                        {
+                            Console.WriteLine("With data: ");
+
+                            foreach (var x in p)
+                            {
+                                Console.WriteLine($"{x.Key} = {x.Value}");
+                            }
+                        }
+                        return null;
+                    }
+                    Thread.Sleep(10);
+                }
+            }
         }
 
         public void CloseDatabase()
