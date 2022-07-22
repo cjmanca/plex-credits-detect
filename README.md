@@ -22,6 +22,7 @@ docker run -d --restart unless-stopped \
     -v /media:/media \
     -it cjmanca/plex-credits-detect:main
 ```
+Docker on windows will encounter issues due to the way docker handles volume mounts on windows, which doesn't allow proper SQLite locking. There's nothing I can do about this, so currently it's recommended to run natively on Windows.
 
 ### Native
 Download a [release](https://github.com/cjmanca/plex-credits-detect/releases "Releases"), extract anywhere you'd like. The first time you run it, a default config file will be generated, and the path to the config file will appear in the console window.
