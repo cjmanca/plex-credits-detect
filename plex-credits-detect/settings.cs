@@ -259,7 +259,7 @@ namespace plexCreditsDetect
 
             foreach (var p in paths)
             {
-                if (p.Key == @"C:\path\to\library" || p.Value == @"C:\path\to\library")
+                if (p.Key == @"C:\path\this\tool\sees\to\library" || p.Value == @"C:\path\Plex\sees\to\library")
                 {
                     Console.WriteLine("[directories] section not yet configured. Please remove the default example directory and add your own library paths.");
                     return false;
