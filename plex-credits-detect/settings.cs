@@ -52,6 +52,7 @@ namespace plexCreditsDetect
         public double videoSizeDivisor = 50;
         public int frameRate = 1;
 
+        public bool recheckUndetectedOnStartup = false;
         public bool forceRedetect = false;
 
         public Func<string, string> pathOverride = null;
@@ -96,6 +97,7 @@ namespace plexCreditsDetect
             ret.videoSizeDivisor = videoSizeDivisor;
             ret.frameRate = frameRate;
 
+            ret.recheckUndetectedOnStartup = recheckUndetectedOnStartup;
             ret.forceRedetect = forceRedetect;
 
             return ret;
@@ -159,6 +161,7 @@ namespace plexCreditsDetect
             TryGet(data, "default", "videoSizeDivisor", ref videoSizeDivisor);
             TryGet(data, "default", "frameRate", ref frameRate);
 
+            TryGet(data, "default", "recheckUndetectedOnStartup", ref recheckUndetectedOnStartup);
             TryGet(data, "default", "forceRedetect", ref forceRedetect);
 
             if (data.Sections.ContainsSection("directories"))
