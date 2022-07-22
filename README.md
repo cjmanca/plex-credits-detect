@@ -100,6 +100,10 @@ videoAccuracy = 2     # called "ThresholdVotes" on the wiki
 videoSizeDivisor = 50 # 1080x1080 / videoSizeDivisor = video size used for comparisons
 frameRate = 1         # biggest factor for video fingerprint speed and memory requirements
 
+recheckUndetectedOnStartup = false # When true, scans your libraries for episodes that are missing timings
+                                   # This can be useful if you change ini settings and want to rescan
+                                   # all your libraries to try to find missing credits
+                                   # Keep set to false during normal operation.
 forceRedetect = false # if this is true, then it will ignore whether the file size matches the database when  
                       # checking if a redetect is needed. Useful if you change ini settings and want to   
                       # force a regeneration of the credits. After changing this, you'll need to do a plex 
