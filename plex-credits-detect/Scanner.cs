@@ -272,7 +272,8 @@ namespace plexCreditsDetect
             Stopwatch sw = new Stopwatch();
             sw.Start();
 
-            var files = Directory.EnumerateFiles(path);
+            var files = Directory.EnumerateFiles(path).ToList();
+            files.Sort();
             foreach (var file in files)
             {
                 if (!IsVideoExtension(file))
@@ -288,6 +289,9 @@ namespace plexCreditsDetect
 
                     if (metaID < 0)
                     {
+                        //Console.WriteLine($"{ep.id}: Metadata not found in plex db. Removing.");
+                        db.DeleteEpisodeTimings(ep);
+                        db.DeleteEpisode(ep);
                         continue;
                     }
 
@@ -517,7 +521,7 @@ namespace plexCreditsDetect
                 if (processed <= 0)
                 {
                     path = Program.getRelativeDirectory(Program.PathCombine(path, "tmp"));
-                    Console.WriteLine($"Nothing able to be processed in {path}");
+                    //Console.WriteLine($"No intros/credits detected in scanned files in {path}");
                     List<Episode> pending = db.GetPendingEpisodesForSeason(path);
 
                     if (pending != null)
@@ -534,7 +538,7 @@ namespace plexCreditsDetect
                             }
                             else
                             {
-                                Console.WriteLine(" Still in Plex DB. Ignoring until next restart.");
+                                Console.WriteLine(" Still in Plex DB but unable to process. Ignoring until next restart.");
                             }
                         }
                     }
@@ -729,12 +733,13 @@ namespace plexCreditsDetect
         {
             try
             {
-                var files = Directory.EnumerateFiles(path);
+                var files = Directory.EnumerateFiles(path).ToList();
+                files.Sort();
                 if (files.Count() > 0)
                 {
                     Settings settings = new Settings(path);
 
-                    if (settings.maximumMatches > 0)
+                    if (settings.maximumMatches > 0 && settings.recheckUndetectedOnStartup)
                     {
                         foreach (var file in files)
                         {
@@ -744,8 +749,10 @@ namespace plexCreditsDetect
                             }
                             Episode ep = new Episode(file);
 
-                            if (CheckIfFileNeedsScanning(ep, settings))
+                            if (CheckIfFileNeedsScanning(ep, settings, true))
                             {
+                                Console.WriteLine("Episode needs scanning: " + ep.id);
+
                                 ep.DetectionPending = true;
                                 db.Insert(ep);
                             }
@@ -753,7 +760,8 @@ namespace plexCreditsDetect
                     }
                 }
 
-                var directories = Directory.EnumerateDirectories(path);
+                var directories = Directory.EnumerateDirectories(path).ToList();
+                directories.Sort();
                 foreach (var dir in directories)
                 {
                     CheckDirectory(dir);

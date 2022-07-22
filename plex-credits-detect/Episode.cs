@@ -188,6 +188,8 @@ namespace plexCreditsDetect
             path = Program.getRelativePath(path);
             Exists = false;
 
+            id = path;
+
             FileInfo fi;
 
             foreach (var bPath in Program.settings.paths)
@@ -210,7 +212,6 @@ namespace plexCreditsDetect
             fullPath = path;
             fullDirPath = Path.GetDirectoryName(path);
 
-            id = Program.getRelativePath(path);
             name = Path.GetFileName(path);
             dir = Program.getRelativeDirectory(path);
 

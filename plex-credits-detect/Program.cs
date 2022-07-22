@@ -55,12 +55,17 @@ namespace plexCreditsDetect
                 watchers[path].Filter = "*.*";
                 watchers[path].EnableRaisingEvents = true;
             }
-
-            foreach (var path in settings.paths)
-            {
-                scanner.CheckDirectory(path);
-            }
             */
+
+
+            if (settings.recheckUndetectedOnStartup)
+            {
+                Console.WriteLine("Crawling library paths to find episodes that don't meet the desired credit and intro numbers");
+                foreach (var path in settings.paths)
+                {
+                    scanner.CheckDirectory(path.Key);
+                }
+            }
 
 
             Console.WriteLine($"\nSyncing newly added episodes from plex...\n");
@@ -82,6 +87,7 @@ namespace plexCreditsDetect
 
                 if (dirs != null)
                 {
+                    dirs.Sort();
                     foreach (var item in dirs)
                     {
                         count++;
