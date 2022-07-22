@@ -91,7 +91,7 @@ PermittedGapWithMinimumEnclosure = 5 # when considering combining multiple segme
 # https://github.com/AddictedCS/soundfingerprinting/wiki/Algorithm-Configuration
 
 audioAccuracy = 4     # called "ThresholdVotes" on the wiki
-stride = 1024 
+stride = 1024         # drop to 512 for songs with a lot of fluctuation. Will increase processing time.
 sampleRate = 5512
 minFrequency = 100
 maxFrequency = 2750
