@@ -27,6 +27,11 @@ Docker on windows will encounter issues due to the way docker handles volume mou
 ### Native
 Download a [release](https://github.com/cjmanca/plex-credits-detect/releases "Releases"), extract anywhere you'd like. The first time you run it, a default config file will be generated, and the path to the config file will appear in the console window.
 
+To run on linux:
+dotnet plex-credits-detect.dll
+
+To run on Windows, just launch the plex-credits-detect.exe, although you may want to do it from command prompt so you can see the path of the config file.
+
 Edit the config file as described below.
 
 Run it again and if configured correctly, it should start working it's way through your library.
