@@ -282,16 +282,23 @@ namespace plexCreditsDetect
                 ep = new Episode(file);
                 if (ep.Exists)
                 {
-                    var info = db.GetEpisode(ep.id);
 
-                    if (info == null)
+                    metaID = plexDB.GetMetadataID(ep);
+                    metaIDs[ep.id] = metaID;
+
+                    if (metaID < 0)
                     {
                         continue;
                     }
 
+                    var info = db.GetEpisode(ep.id);
+                    if (info == null)
+                    {
+                        // metadata was found in plex db, so update our db with the episode
+                        ep.DetectionPending = true;
+                        db.Insert(ep);
+                    }
 
-                    metaID = plexDB.GetMetadataID(ep);
-                    metaIDs[ep.id] = metaID;
                     plexTimings = plexDB.GetPlexIntroTimings(metaID);
                     allPlexTimings[ep.id] = plexTimings;
 
@@ -335,13 +342,6 @@ namespace plexCreditsDetect
                 {
                     try
                     {
-                        var info = db.GetEpisode(ep.id);
-
-                        if (info == null)
-                        {
-                            continue;
-                        }
-
                         if (metaIDs.ContainsKey(ep.id))
                         {
                             metaID = metaIDs[ep.id];
@@ -349,6 +349,18 @@ namespace plexCreditsDetect
                         else
                         {
                             metaID = plexDB.GetMetadataID(ep);
+                        }
+                        if (metaID < 0)
+                        {
+                            continue;
+                        }
+
+                        var info = db.GetEpisode(ep.id);
+                        if (info == null)
+                        {
+                            // metadata was found in plex db, so update our db with the episode
+                            ep.DetectionPending = true;
+                            db.Insert(ep);
                         }
 
                         if (allPlexTimings.ContainsKey(ep.id))
