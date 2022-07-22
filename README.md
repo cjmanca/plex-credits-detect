@@ -109,6 +109,7 @@ recheckUndetectedOnStartup = false # When true, scans your libraries for episode
                                    # This can be useful if you change ini settings and want to rescan
                                    # all your libraries to try to find missing credits
                                    # Keep set to false during normal operation.
+                                   # This will also pick up episodes that don't have plex detected intros.
 forceRedetect = false # if this is true, then it will ignore whether the file size matches the database when  
                       # checking if a redetect is needed. Useful if you change ini settings and want to   
                       # force a regeneration of the credits. After changing this, you'll need to do a plex 
