@@ -96,7 +96,7 @@ PermittedGapWithMinimumEnclosure = 5 # when considering combining multiple segme
 # https://github.com/AddictedCS/soundfingerprinting/wiki/Algorithm-Configuration
 
 audioAccuracy = 4     # called "ThresholdVotes" on the wiki
-stride = 1024         # set to 512 for songs not detected due to a lot of fluctuation. Higher cpu usage.
+stride = 512          # If scanning is too slow, can set this to 1024 or 2048 to speed up. May miss sections
 sampleRate = 5512
 minFrequency = 100
 maxFrequency = 2750
