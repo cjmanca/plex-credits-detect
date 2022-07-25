@@ -14,10 +14,10 @@ namespace plexCreditsDetect.Database
         public void LoadDatabase(string path);
         public void SetupNewScan();
         public void Insert(Episode trackinfo);
-        public void InsertHash(Episode ep, AVHashes hashes, MediaType avtype, bool isCredits, double start);
+        public void InsertHash(Episode ep, AVHashes hashes, MediaType avtype, bool isCredits, double start, int partNum = -1);
         public void CloseDatabase();
         public Episode GetEpisode(string id);
-        public AVHashes GetTrackHash(string id, bool isCredits);
+        public AVHashes GetTrackHash(string id, bool isCredits, int partNum = -1);
         public void DeleteEpisode(Episode ep);
         public List<Episode> GetPendingEpisodes();
         public Episode GetOnePendingEpisode();

@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 
 namespace plexCreditsDetect.Database
 {
+    [Obsolete("LMDBFingerprintDatabase database not functional at present. Use InMemoryFingerprintDatabase.", true)]
     internal class LMDBFingerprintDatabase : IFingerprintDatabase
     {
         LMDBModelService modelService = null;
@@ -62,7 +63,7 @@ namespace plexCreditsDetect.Database
             }
         }
 
-        public AVHashes GetTrackHash(string id, bool isCredits)
+        public AVHashes GetTrackHash(string id, bool isCredits, int partNum = -1)
         {
             return modelService.ReadHashesByTrackId(id + isCredits);
         }
@@ -93,18 +94,18 @@ namespace plexCreditsDetect.Database
             ep.name = track.Title;
             ep.dir = track.Artist;
 
-            ep.LastWriteTimeUtc = DateTime.MinValue;
-            ep.FileSize = 0;
+            ep.LastWriteTimeUtcInDB = DateTime.MinValue;
+            ep.FileSizeInDB = 0;
             ep.DetectionPending = true;
 
             if (long.TryParse(track.MetaFields["LastWriteTimeUtc"], out tmp))
             {
-                ep.LastWriteTimeUtc = DateTime.FromFileTimeUtc(tmp);
+                ep.LastWriteTimeUtcInDB = DateTime.FromFileTimeUtc(tmp);
             }
 
             if (long.TryParse(track.MetaFields["FileSize"], out tmp))
             {
-                ep.FileSize = tmp;
+                ep.FileSizeInDB = tmp;
             }
 
             if (bool.TryParse(track.MetaFields["DetectionPending"], out tmp2))
@@ -150,7 +151,7 @@ namespace plexCreditsDetect.Database
             }
         }
 
-        public void InsertHash(Episode ep, AVHashes hashes, MediaType avtype, bool isCredits, double start)
+        public void InsertHash(Episode ep, AVHashes hashes, MediaType avtype, bool isCredits, double start, int partNum = -1)
         {
             if (modelService == null)
             {
@@ -172,8 +173,8 @@ namespace plexCreditsDetect.Database
             {
                 { "name", ep.name },
                 { "dir", ep.dir },
-                { "LastWriteTimeUtc", ep.LastWriteTimeUtc.ToFileTimeUtc().ToString() },
-                { "FileSize", ep.FileSize.ToString() },
+                { "LastWriteTimeUtc", ep.LastWriteTimeUtcOnDisk.ToFileTimeUtc().ToString() },
+                { "FileSize", ep.FileSizeOnDisk.ToString() },
                 { "start", start.ToString() },
                 { "isCredits", isCredits.ToString() },
                 { "DetectionPending", ep.DetectionPending.ToString() }

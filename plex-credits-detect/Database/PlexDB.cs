@@ -206,12 +206,16 @@ namespace plexCreditsDetect.Database
                 return null;
             }
 
-            return new Episode(result.GetString(0));
+            Episode ep = new Episode(result.GetString(0));
+            ep.meta_id = metadata_item_id;
+            ep.InPlexDB = true;
+
+            return ep;
         }
 
         public void DeleteExistingIntros(Episode ep)
         {
-            DeleteExistingIntros(GetMetadataID(ep));
+            DeleteExistingIntros(ep.meta_id);
         }
 
         public void DeleteExistingIntros(long epMetaID)
@@ -351,6 +355,9 @@ namespace plexCreditsDetect.Database
                 data.metadata_item_id = result.GetInt64(0);
 
                 data.episode = new Episode(result.GetString(1));
+
+                data.episode.meta_id = data.metadata_item_id;
+                data.episode.InPlexDB = true;
 
                 data.segment.start = result.GetDouble(2) / 1000.0;
                 data.segment.end = result.GetDouble(3) / 1000.0;
