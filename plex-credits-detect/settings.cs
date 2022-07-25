@@ -43,7 +43,7 @@ namespace plexCreditsDetect
         public double PermittedGapWithMinimumEnclosure = 10;
 
         public int audioAccuracy = 4;
-        public int stride = 1024;
+        public int stride = 512;
         public int sampleRate = 5512;
         public ushort minFrequency = 200;
         public ushort maxFrequency = 2000;
@@ -233,7 +233,7 @@ namespace plexCreditsDetect
                             "TempDirectoryPath = " + Program.PathCombine(globalSettingsPath, "temp") + Environment.NewLine +
                             "ffmpegPath = " + defaultFfmpegPath;
 
-                        File.WriteAllText(Program.PathCombine(globalSettingsPath, "fingerprint.ini"), output, Encoding.Unicode);
+                        File.WriteAllText(Program.PathCombine(globalSettingsPath, "fingerprint.ini"), output, Encoding.UTF8);
 
                         Console.WriteLine("Created default config file: " + Program.PathCombine(globalSettingsPath, "fingerprint.ini"));
 

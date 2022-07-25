@@ -91,6 +91,7 @@ namespace plexCreditsDetect
                     foreach (var item in dirs)
                     {
                         count++;
+                        Console.WriteLine($"");
                         Console.WriteLine($"Processing season {count} of {dirs.Count}");
                         scanner.ScanDirectory(item);
                     }

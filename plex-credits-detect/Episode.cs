@@ -14,38 +14,145 @@ namespace plexCreditsDetect
         public string id { get; set; }
         public string name { get; set; }
         public string dir { get; set; }
-        public DateTime LastWriteTimeUtc { get; set; } = DateTime.MinValue;
-        public long FileSize { get; set; } = 0;
         public bool DetectionPending { get; set; } = true;
+
+        DateTime? _LastWriteTimeUtcInDB = null;
+        public DateTime LastWriteTimeUtcInDB
+        {
+            get
+            {
+                if (!_LastWriteTimeUtcInDB.HasValue)
+                {
+                    Scanner.db.GetEpisode(this);
+                    if (!_LastWriteTimeUtcInDB.HasValue)
+                    {
+                        _LastWriteTimeUtcInDB = DateTime.MinValue;
+                    }
+                }
+                return _LastWriteTimeUtcInDB.Value;
+            }
+            set
+            {
+                _LastWriteTimeUtcInDB = value;
+            }
+        }
+
+        long? _FileSizeInDB = null;
+        public long FileSizeInDB
+        {
+            get
+            {
+                if (!_FileSizeInDB.HasValue)
+                {
+                    Scanner.db.GetEpisode(this);
+                    if (!_FileSizeInDB.HasValue)
+                    {
+                        _FileSizeInDB = -1;
+                    }
+                }
+                return _FileSizeInDB.Value;
+            }
+            set
+            {
+                _FileSizeInDB = value;
+            }
+        }
+
+
 
 
         // Extra info
+        public bool passed = false;
+        public bool needsScanning = false;
         public bool Exists { get; set; } = false;
         public string fullPath { get; set; }
         public string fullDirPath { get; set; }
         public Segments segments { get; set; } = new Segments();
+        public long FileSizeOnDisk { get; set; }
+        public DateTime LastWriteTimeUtcOnDisk { get; set; }
 
-        double _duration = -1;
+
+        bool? _InPlexDB = null;
+        public bool InPlexDB
+        {
+            get
+            {
+                if (!_InPlexDB.HasValue)
+                {
+                    _InPlexDB = meta_id >= 0;
+                }
+                return _InPlexDB.Value;
+            }
+            set
+            {
+                _InPlexDB = value;
+            }
+        }
+
+        bool? _InPrivateDB = null;
+        public bool InPrivateDB
+        {
+            get
+            {
+                if (!_InPrivateDB.HasValue)
+                {
+                    Scanner.db.GetEpisode(this);
+                    if (!_InPrivateDB.HasValue)
+                    {
+                        _InPrivateDB = false;
+                    }
+                }
+                return _InPrivateDB.Value;
+            }
+            set
+            {
+                _InPrivateDB = value;
+            }
+        }
+        long? _meta_id = null;
+        public long meta_id
+        {
+            get
+            {
+                if (!_meta_id.HasValue)
+                {
+                    _meta_id = Scanner.plexDB.GetMetadataID(this);
+                }
+                return _meta_id.Value;
+            }
+            set
+            {
+                _meta_id = value;
+            }
+        }
+        Segment _plexTimings = null;
+        public Segment plexTimings
+        {
+            get
+            {
+                if (_plexTimings == null)
+                {
+                    _plexTimings = Scanner.plexDB.GetPlexIntroTimings(meta_id);
+                }
+                return _plexTimings;
+            }
+            set
+            {
+                _plexTimings = value;
+            }
+        }
+
+        double? _duration = null;
         public double duration
         {
             get
             {
-                if (_duration <= 0)
+                if (!_duration.HasValue)
                 {
                     _duration = ffmpeghelper.GetDuration(fullPath);
-                    if (_duration <= 0)
-                    {
-                        Thread.Sleep(10);
-                        _duration = ffmpeghelper.GetDuration(fullPath);
-                        if (_duration <= 0)
-                        {
-                            Thread.Sleep(10);
-                            _duration = ffmpeghelper.GetDuration(fullPath);
-                        }
-                    }
                 }
 
-                return _duration;
+                return _duration.Value;
             }
         }
 
@@ -59,6 +166,8 @@ namespace plexCreditsDetect
             public double duration => end - start;
 
             public bool isCredits = false;
+
+            public Episode episode = null;
 
             public Segment()
             {
@@ -201,8 +310,8 @@ namespace plexCreditsDetect
                 {
                     Exists = true;
                     path = fi.FullName;
-                    LastWriteTimeUtc = fi.LastWriteTimeUtc;
-                    FileSize = fi.Length;
+                    LastWriteTimeUtcOnDisk = fi.LastWriteTimeUtc;
+                    FileSizeOnDisk = fi.Length;
 
                     break;
                 }
