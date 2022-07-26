@@ -58,7 +58,7 @@ namespace plexCreditsDetect
             */
 
 
-            if (settings.recheckUndetectedOnStartup)
+            if (settings.recheckUndetectedOnStartup || settings.recheckSilenceOnStartup)
             {
                 Console.WriteLine("Crawling library paths to find episodes that don't meet the desired credit and intro numbers");
                 foreach (var path in settings.paths)

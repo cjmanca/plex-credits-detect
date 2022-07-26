@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -14,7 +13,69 @@ namespace plexCreditsDetect
         public string id { get; set; }
         public string name { get; set; }
         public string dir { get; set; }
-        public bool DetectionPending { get; set; } = true;
+
+        bool? _SilenceDetectionPending = null;
+        public bool SilenceDetectionPending
+        {
+            get
+            {
+                if (!_SilenceDetectionPending.HasValue)
+                {
+                    Scanner.db.GetEpisode(this);
+                    if (!_SilenceDetectionPending.HasValue)
+                    {
+                        _SilenceDetectionPending = false;
+                    }
+                }
+                return _SilenceDetectionPending.Value;
+            }
+            set
+            {
+                _SilenceDetectionPending = value;
+            }
+        }
+
+        bool? _DetectionPending = null;
+        public bool DetectionPending
+        {
+            get
+            {
+                if (!_DetectionPending.HasValue)
+                {
+                    Scanner.db.GetEpisode(this);
+                    if (!_DetectionPending.HasValue)
+                    {
+                        _DetectionPending = false;
+                    }
+                }
+                return _DetectionPending.Value;
+            }
+            set
+            {
+                _DetectionPending = value;
+            }
+        }
+
+        bool? _SilenceDetectionDone = null;
+        public bool SilenceDetectionDone
+        {
+            get
+            {
+                if (!_SilenceDetectionDone.HasValue)
+                {
+                    Scanner.db.GetEpisode(this);
+                    if (!_SilenceDetectionDone.HasValue)
+                    {
+                        _SilenceDetectionDone = false;
+                    }
+                }
+                return _SilenceDetectionDone.Value;
+            }
+            set
+            {
+                _SilenceDetectionDone = value;
+            }
+        }
 
         DateTime? _LastWriteTimeUtcInDB = null;
         public DateTime LastWriteTimeUtcInDB
@@ -64,6 +125,7 @@ namespace plexCreditsDetect
         // Extra info
         public bool passed = false;
         public bool needsScanning = false;
+        public bool needsSilenceScanning = false;
         public bool Exists { get; set; } = false;
         public string fullPath { get; set; }
         public string fullDirPath { get; set; }
@@ -125,20 +187,27 @@ namespace plexCreditsDetect
                 _meta_id = value;
             }
         }
+
+        bool checkedForPlexTimings = false;
         Segment _plexTimings = null;
         public Segment plexTimings
         {
             get
             {
-                if (_plexTimings == null)
+                if (!checkedForPlexTimings)
                 {
                     _plexTimings = Scanner.plexDB.GetPlexIntroTimings(meta_id);
+                    checkedForPlexTimings = true;
                 }
                 return _plexTimings;
             }
             set
             {
                 _plexTimings = value;
+                if (_plexTimings != null)
+                {
+                    checkedForPlexTimings = true;
+                }
             }
         }
 
@@ -153,133 +222,6 @@ namespace plexCreditsDetect
                 }
 
                 return _duration.Value;
-            }
-        }
-
-
-
-        [DebuggerDisplay("Start: {start} - {end}, duration: {duration}")]
-        public class Segment
-        {
-            public double start = 0;
-            public double end = 0;
-            public double duration => end - start;
-
-            public bool isCredits = false;
-
-            public Episode episode = null;
-
-            public Segment()
-            {
-
-            }
-            public Segment(double start, double end)
-            {
-                this.start = start;
-                this.end = end;
-            }
-
-            public void Validate()
-            {
-                if (start > end)
-                {
-                    double temp = end;
-                    end = start;
-                    start = temp;
-                }
-            }
-
-            public bool Intersects(Segment seg, double permittedGap = 0)
-            {
-                Validate();
-                seg.Validate();
-
-                if (start <= seg.end + permittedGap && end >= seg.start - permittedGap)
-                {
-                    return true;
-                }
-                return false;
-            }
-
-            public Segment Overlap(Segment seg)
-            {
-                Validate();
-                seg.Validate();
-
-                Segment result = new Segment(Math.Max(seg.start, start), Math.Min(seg.end, end));
-                result.isCredits = isCredits;
-
-                if (result.start >= result.end)
-                {
-                    return null;
-                }
-                return result;
-            }
-
-            public override string ToString()
-            {
-                return $"Start: {start:0.00} - {end:0.00}, duration: {duration:0.00}";
-            }
-        }
-
-        public class Segments
-        {
-            public List<Segment> allSegments = new List<Segment>();
-
-            public void AddSegment(Segment segment, double permittedGap = 0)
-            {
-                var segments = FindIntersectingSegments(segment, permittedGap);
-
-                segments.Add(segment);
-
-                double min = segments.Min(x => x.start);
-                double max = segments.Max(x => x.end);
-
-                var newSeg = new Segment(min, max);
-                newSeg.isCredits = segment.isCredits;
-
-                foreach (var seg in segments)
-                {
-                    allSegments.Remove(seg);
-                }
-
-                allSegments.Add(newSeg);
-
-                //allSegments.Sort((a, b) => a.start.CompareTo(b.start));
-            }
-
-            public List<Segment> FindIntersectingSegments(Segment segment, double permittedGap = 0)
-            {
-                List<Segment> ret = new List<Segment>();
-
-                foreach (Segment seg in allSegments)
-                {
-                    if (segment.Intersects(seg, permittedGap))
-                    {
-                        ret.Add(seg);
-                    }
-                }
-
-                return ret;
-            }
-
-            public Segments FindAllOverlaps(Segments other)
-            {
-                Segments ret = new Segments();
-
-                foreach (var x in other.allSegments)
-                {
-                    foreach (var y in allSegments)
-                    {
-                        Segment seg = x.Overlap(y);
-                        if (seg != null)
-                        {
-                            ret.AddSegment(seg);
-                        }
-                    }
-                }
-
-                return ret;
             }
         }
 
