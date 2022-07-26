@@ -68,8 +68,9 @@ C:\path\credits\scanner\sees = C:\path\plex\server\sees
 # These paths must be the same as configured in plex in order to properly locate the files
 
 [default]
-useAudio = true              # use audio fingerprinting
-useVideo = false             # use video frame fingerprinting (slow)
+useAudio = true                      # use audio fingerprinting
+useVideo = false                     # use video frame fingerprinting (slow)
+detectSilenceAfterCredits = true     # check for long periods of silence after the credits
 
 introMatchCount = 0          # how many extra intro sequences to find, not including the plex detected one
 creditsMatchCount = 1        # how many credits sequences to find
@@ -101,10 +102,16 @@ sampleRate = 5512
 minFrequency = 100
 maxFrequency = 2750
 
+silenceDecibels = -55 # If the volume is below this for longer than minimumMatchSeconds it'll detect as silence
+
 videoAccuracy = 2     # called "ThresholdVotes" on the wiki
 videoSizeDivisor = 50 # 1080x1080 / videoSizeDivisor = video size used for comparisons
 frameRate = 1         # biggest factor for video fingerprint speed and memory requirements
 
+recheckSilenceOnStartup = false    # When true, scans your libraries for episodes that haven't yet
+                                   # been checked for sections of silence after the credits
+                                   # Keep set to false during normal operation.
+                                   # This will also pick up episodes that don't have plex detected intros.
 recheckUndetectedOnStartup = false # When true, scans your libraries for episodes that are missing timings
                                    # This can be useful if you change ini settings and want to rescan
                                    # all your libraries to try to find missing credits
