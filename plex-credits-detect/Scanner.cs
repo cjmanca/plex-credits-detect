@@ -222,11 +222,13 @@ namespace plexCreditsDetect
                         tempFile = Program.PathCombine(settings.TempDirectoryPath, $"{creditSnippet}.{Path.GetFileNameWithoutExtension(ep.name)}.mkv");
                     }
 
-                    if (!ffmpeghelper.CutVideo(times.start, times.end, ep.fullPath, tempFile, settings.useVideo, settings.useAudio || settings.detectSilenceAfterCredits, settings.sampleRate))
+                    if (!File.Exists(tempFile))
                     {
-                        return;
+                        if (!ffmpeghelper.CutVideo(times.start, times.end, ep.fullPath, tempFile, settings.useVideo, settings.useAudio || settings.detectSilenceAfterCredits, settings.sampleRate))
+                        {
+                            return;
+                        }
                     }
-
                     // create hashed fingerprint
                     var hashedFingerprint = FingerprintCommandBuilder.Instance
                                                 .BuildFingerprintCommand()
@@ -615,7 +617,6 @@ namespace plexCreditsDetect
                 int totalNeedsSilenceScanning = allEpisodes.Count(x => x.needsSilenceScanning);
 
 
-
                 if (totalNeedsSilenceScanning <= 0 && (totalNeedsScanning <= 0 || totalToFingerprint < 2))
                 {
                     CleanTemp();
@@ -774,7 +775,10 @@ namespace plexCreditsDetect
                         }
                         else
                         {
-                            remainingToFind++;
+                            if (ep.needsScanning)
+                            {
+                                remainingToFind++;
+                            }
                         }
                     }
                 }
