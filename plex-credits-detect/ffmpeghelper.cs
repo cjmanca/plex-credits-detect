@@ -38,43 +38,141 @@ namespace plexCreditsDetect
             return ret / (double)ffmpeg.AV_TIME_BASE;
         }
 
-        private static string Execute(string exePath, string parameters)
+        private static string Execute(string exePath, string parameters, out string errors)
         {
             string result = String.Empty;
+            errors = String.Empty;
 
             using (Process p = new Process())
             {
                 p.StartInfo.UseShellExecute = false;
                 p.StartInfo.CreateNoWindow = true;
-                //p.StartInfo.RedirectStandardOutput = true;
+                p.StartInfo.RedirectStandardOutput = true;
                 p.StartInfo.RedirectStandardError = true;
                 p.StartInfo.FileName = exePath;
                 p.StartInfo.Arguments = parameters;
                 p.Start();
                 p.WaitForExit();
 
-                //result = p.StandardOutput.ReadToEnd();
-                result = p.StandardError.ReadToEnd();
+                result = p.StandardOutput.ReadToEnd();
+                errors = p.StandardError.ReadToEnd();
             }
 
             return result;
         }
 
-        public static bool CutVideo(double from_seconds, double end_seconds, string in_filename, string out_filename, bool includeVideo, bool includeAudio)
+        public static Segments DetectSilence(string in_filename, double minimumSeconds, int silenceDecibels)
         {
+            string errors = "";
+
+            string args = $"-i \"{in_filename}\" -v fatal -threads 0 -filter:a:0 silencedetect={silenceDecibels}dB:d={minimumSeconds},ametadata=mode=print:file=-:key=lavfi.silence_start,ametadata=mode=print:file=-:key=lavfi.silence_end -vn -sn -dn -f null -";
+
+            string output = Execute(Program.settings.ffmpegPath, args, out errors);
+
+            Segments segments = new Segments();
+
+            List<double> startTimes = new List<double>();
+            List<double> endTimes = new List<double>();
+
+            string[] lines = output.Split(
+                new string[] { "\r\n", "\r", "\n" },
+                StringSplitOptions.RemoveEmptyEntries
+            );
+
+
+            foreach (string line in lines)
+            {
+                if (line.Contains("silence_start"))
+                {
+                    string tmp = line.Substring(line.LastIndexOf('=') + 1);
+                    double dtmp = 0;
+
+                    if (double.TryParse(tmp.Trim(), out dtmp))
+                    {
+                        startTimes.Add(dtmp);
+                    }
+                }
+                if (line.Contains("silence_end"))
+                {
+                    string tmp = line.Substring(line.LastIndexOf('=') + 1);
+                    double dtmp = 0;
+
+                    if (double.TryParse(tmp.Trim(), out dtmp))
+                    {
+                        endTimes.Add(dtmp);
+                    }
+                }
+            }
+
+            if (endTimes.Count() < startTimes.Count())
+            {
+                endTimes.Add(GetDuration(in_filename));
+            }
+            if (endTimes.Count() != startTimes.Count())
+            {
+                Console.WriteLine("DetectSilence - different start/end counts");
+                return segments;
+            }
+
+            startTimes.Sort();
+            endTimes.Sort();
+
+            for (int i = 0; i < startTimes.Count(); i++)
+            {
+                Segment seg = new Segment();
+
+                seg.isSilence = true;
+                seg.start = startTimes[i];
+                seg.end = endTimes[i];
+
+                if (seg.end < seg.start)
+                {
+                    Console.WriteLine("DetectSilence - end earlier than start:");
+                    foreach(var item in endTimes)
+                    {
+                        Console.WriteLine("Start: " + item);
+                    }
+                    foreach (var item in endTimes)
+                    {
+                        Console.WriteLine("End: " + item);
+                    }
+                    return segments;
+                }
+
+                segments.AddSegment(seg);
+            }
+
+            return segments;
+        }
+
+        public static bool CutVideo(double from_seconds, double end_seconds, string in_filename, string out_filename, bool includeVideo, bool includeAudio, int sampleRate)
+        {
+            /**/
+            string endian = BitConverter.IsLittleEndian ? "le" : "be";
+
+            string noAudio = includeAudio ? $"-map 0:a:0 -c:a pcm_s16{endian} -ar {sampleRate} -ac 1" : "-an";
+            string noVideo = includeVideo ? "-map 0:v:0 -vcodec copy" : "-vn";
+
+            string args = $"-y -loglevel fatal -threads 0 -ss {from_seconds} -i \"{in_filename}\" -to {end_seconds} {noVideo} {noAudio} -sn -dn \"{out_filename}\"";
+
+            /** /
+
             string noAudio = includeAudio ? "" : "-an";
             string noVideo = includeVideo ? "" : "-vn";
 
             string args = $"-y -loglevel error -ss {from_seconds} -i \"{in_filename}\" -to {end_seconds} {noVideo} {noAudio} -sn -dn -c copy -copyts \"{out_filename}\"";
 
-            string output = Execute(Program.settings.ffmpegPath, args);
+            /**/
+            string errors;
+            string output = Execute(Program.settings.ffmpegPath, args, out errors);
 
-            if (output != "")
+            if (output != "" || errors != "")
             {
-                Console.WriteLine("ffmpeg error: " + output);
+                Console.WriteLine("ffmpeg error: " + errors + " output: " + output);
+                return false;
             }
 
-            return File.Exists(out_filename);
+            return true;
 
             // The code below fails at avformat_write_header for some videos, but not sure why. Just going to use command line for now
 

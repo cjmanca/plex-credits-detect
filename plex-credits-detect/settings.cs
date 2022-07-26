@@ -23,9 +23,11 @@ namespace plexCreditsDetect
 
         public bool useAudio = true;
         public bool useVideo = false;
+        public bool detectSilenceAfterCredits = true;
 
         public int introMatchCount = 0;
         public int creditsMatchCount = 1;
+
         public int maximumMatches => introMatchCount + creditsMatchCount;
 
         public double introStart = 0;
@@ -39,7 +41,7 @@ namespace plexCreditsDetect
         public double shiftSegmentBySeconds = 2;
 
         public double minimumMatchSeconds = 20;
-        public double PermittedGap = 5;
+        public double PermittedGap = 3;
         public double PermittedGapWithMinimumEnclosure = 10;
 
         public int audioAccuracy = 4;
@@ -47,15 +49,19 @@ namespace plexCreditsDetect
         public int sampleRate = 5512;
         public ushort minFrequency = 200;
         public ushort maxFrequency = 2000;
+        public int silenceDecibels = -55;
 
         public int videoAccuracy = 2;
         public double videoSizeDivisor = 50;
         public int frameRate = 1;
 
+        public bool recheckSilenceOnStartup = false;
         public bool recheckUndetectedOnStartup = false;
         public bool forceRedetect = false;
 
         public Func<string, string> pathOverride = null;
+
+        bool anyMissingGlobalIniSettings = false;
 
         object ICloneable.Clone()
         {
@@ -69,6 +75,7 @@ namespace plexCreditsDetect
 
             ret.useAudio = useAudio;
             ret.useVideo = useVideo;
+            ret.detectSilenceAfterCredits = detectSilenceAfterCredits;
 
             ret.introMatchCount = introMatchCount;
             ret.creditsMatchCount = creditsMatchCount;
@@ -92,19 +99,23 @@ namespace plexCreditsDetect
             ret.sampleRate = sampleRate;
             ret.minFrequency = minFrequency;
             ret.maxFrequency = maxFrequency;
+            ret.silenceDecibels = silenceDecibels;
 
             ret.videoAccuracy = videoAccuracy;
             ret.videoSizeDivisor = videoSizeDivisor;
             ret.frameRate = frameRate;
 
+            ret.recheckSilenceOnStartup = recheckSilenceOnStartup;
             ret.recheckUndetectedOnStartup = recheckUndetectedOnStartup;
             ret.forceRedetect = forceRedetect;
 
             return ret;
         }
 
-        private void LoadSingle(string path)
+        private void LoadSingle(string path, bool warnOnMissing = false)
         {
+            Encoding encoding = Encoding.UTF8;
+
             if (pathOverride != null)
             {
                 path = pathOverride(path);
@@ -123,46 +134,51 @@ namespace plexCreditsDetect
             
             using (var reader = new StreamReader(iniPath))
             {
-                data = parser.ReadFile(iniPath, reader.CurrentEncoding);
+                encoding = reader.CurrentEncoding;
             }
 
-            TryGet(data, "default", "databasePath", ref databasePath);
-            TryGet(data, "default", "PlexDatabasePath", ref PlexDatabasePath);
-            TryGet(data, "default", "TempDirectoryPath", ref TempDirectoryPath);
-            TryGet(data, "default", "ffmpegPath", ref ffmpegPath);
+            data = parser.ReadFile(iniPath, encoding);
 
-            TryGet(data, "default", "useAudio", ref useAudio);
-            TryGet(data, "default", "useVideo", ref useVideo);
+            TryGet(data, warnOnMissing, "default", "databasePath", ref databasePath);
+            TryGet(data, warnOnMissing, "default", "PlexDatabasePath", ref PlexDatabasePath);
+            TryGet(data, warnOnMissing, "default", "TempDirectoryPath", ref TempDirectoryPath);
+            TryGet(data, warnOnMissing, "default", "ffmpegPath", ref ffmpegPath);
 
-            TryGet(data, "default", "introMatchCount", ref introMatchCount);
-            TryGet(data, "default", "creditsMatchCount", ref creditsMatchCount);
+            TryGet(data, warnOnMissing, "default", "useAudio", ref useAudio);
+            TryGet(data, warnOnMissing, "default", "useVideo", ref useVideo);
+            TryGet(data, warnOnMissing, "default", "detectSilenceAfterCredits", ref detectSilenceAfterCredits);
 
-            TryGet(data, "default", "introStart", ref introStart);
-            TryGet(data, "default", "introEnd", ref introEnd);
-            TryGet(data, "default", "introMaxSearchPeriod", ref introMaxSearchPeriod);
+            TryGet(data, warnOnMissing, "default", "introMatchCount", ref introMatchCount);
+            TryGet(data, warnOnMissing, "default", "creditsMatchCount", ref creditsMatchCount);
 
-            TryGet(data, "default", "creditsStart", ref creditsStart);
-            TryGet(data, "default", "creditsEnd", ref creditsEnd);
-            TryGet(data, "default", "creditsMaxSearchPeriod", ref creditsMaxSearchPeriod);
+            TryGet(data, warnOnMissing, "default", "introStart", ref introStart);
+            TryGet(data, warnOnMissing, "default", "introEnd", ref introEnd);
+            TryGet(data, warnOnMissing, "default", "introMaxSearchPeriod", ref introMaxSearchPeriod);
 
-            TryGet(data, "default", "shiftSegmentBySeconds", ref shiftSegmentBySeconds);
+            TryGet(data, warnOnMissing, "default", "creditsStart", ref creditsStart);
+            TryGet(data, warnOnMissing, "default", "creditsEnd", ref creditsEnd);
+            TryGet(data, warnOnMissing, "default", "creditsMaxSearchPeriod", ref creditsMaxSearchPeriod);
 
-            TryGet(data, "default", "minimumMatchSeconds", ref minimumMatchSeconds);
-            TryGet(data, "default", "PermittedGap", ref PermittedGap);
-            TryGet(data, "default", "PermittedGapWithMinimumEnclosure", ref PermittedGapWithMinimumEnclosure);
+            TryGet(data, warnOnMissing, "default", "shiftSegmentBySeconds", ref shiftSegmentBySeconds);
 
-            TryGet(data, "default", "audioAccuracy", ref audioAccuracy);
-            TryGet(data, "default", "stride", ref stride);
-            TryGet(data, "default", "sampleRate", ref sampleRate);
-            TryGet(data, "default", "minFrequency", ref minFrequency);
-            TryGet(data, "default", "maxFrequency", ref maxFrequency);
+            TryGet(data, warnOnMissing, "default", "minimumMatchSeconds", ref minimumMatchSeconds);
+            TryGet(data, warnOnMissing, "default", "PermittedGap", ref PermittedGap);
+            TryGet(data, warnOnMissing, "default", "PermittedGapWithMinimumEnclosure", ref PermittedGapWithMinimumEnclosure);
 
-            TryGet(data, "default", "videoAccuracy", ref videoAccuracy);
-            TryGet(data, "default", "videoSizeDivisor", ref videoSizeDivisor);
-            TryGet(data, "default", "frameRate", ref frameRate);
+            TryGet(data, warnOnMissing, "default", "audioAccuracy", ref audioAccuracy);
+            TryGet(data, warnOnMissing, "default", "stride", ref stride);
+            TryGet(data, warnOnMissing, "default", "sampleRate", ref sampleRate);
+            TryGet(data, warnOnMissing, "default", "minFrequency", ref minFrequency);
+            TryGet(data, warnOnMissing, "default", "maxFrequency", ref maxFrequency);
+            TryGet(data, warnOnMissing, "default", "silenceDecibels", ref silenceDecibels);
 
-            TryGet(data, "default", "recheckUndetectedOnStartup", ref recheckUndetectedOnStartup);
-            TryGet(data, "default", "forceRedetect", ref forceRedetect);
+            TryGet(data, warnOnMissing, "default", "videoAccuracy", ref videoAccuracy);
+            TryGet(data, warnOnMissing, "default", "videoSizeDivisor", ref videoSizeDivisor);
+            TryGet(data, warnOnMissing, "default", "frameRate", ref frameRate);
+
+            TryGet(data, warnOnMissing, "default", "recheckSilenceOnStartup", ref recheckSilenceOnStartup);
+            TryGet(data, warnOnMissing, "default", "recheckUndetectedOnStartup", ref recheckUndetectedOnStartup);
+            TryGet(data, warnOnMissing, "default", "forceRedetect", ref forceRedetect);
 
             if (data.Sections.ContainsSection("directories"))
             {
@@ -173,6 +189,20 @@ namespace plexCreditsDetect
                         paths[dir.KeyName.Trim()] = dir.Value.Trim();
                     }
                 }
+            }
+
+            if (anyMissingGlobalIniSettings)
+            {
+                anyMissingGlobalIniSettings = false;
+                
+                Console.WriteLine("");
+                Console.WriteLine("Missing settings have been added to your global ini. Consult github for information on these settings:");
+                Console.WriteLine("https://github.com/cjmanca/plex-credits-detect");
+                Console.WriteLine("");
+
+                File.WriteAllText(iniPath, data.ToString(), encoding);
+
+                Thread.Sleep(10000);
             }
         }
 
@@ -245,7 +275,7 @@ namespace plexCreditsDetect
 
             Console.WriteLine("Loading global config file: " + Program.PathCombine(globalSettingsPath, "fingerprint.ini"));
 
-            Load();
+            Load("", true);
 
             if (TempDirectoryPath == "")
             {
@@ -293,11 +323,11 @@ namespace plexCreditsDetect
             return true;
         }
 
-        public void Load(string path = "")
+        public void Load(string path = "", bool warnOnMissing = false)
         {
             currentlyLoadedSettingsPath = Path.GetDirectoryName(Program.PathCombine(path, "nothing"));
 
-            LoadSingle(globalSettingsPath);
+            LoadSingle(globalSettingsPath, warnOnMissing);
 
             if (path == "")
             {
@@ -321,8 +351,17 @@ namespace plexCreditsDetect
             }
         }
 
-        void TryGet<T>(IniData data, string section, string key, ref T assign)
+        void TryGet<T>(IniData data, bool warnOnMissing, string section, string key, ref T assign)
         {
+            if (warnOnMissing && (!data.Sections.ContainsSection(section) || !data[section].ContainsKey(key)))
+            {
+                data[section][key] = assign.ToString();
+
+                Console.WriteLine("");
+                Console.WriteLine($"!!! MISSING Ini key in global config file. Section: {section}, Key: {key}");
+                anyMissingGlobalIniSettings = true;
+            }
+
             if (typeof(bool) == assign.GetType())
             {
                 bool tmp = false;
@@ -370,7 +409,7 @@ namespace plexCreditsDetect
             int iTemp;
             if (data.Sections.ContainsSection(section) && data[section].ContainsKey(key))
             {
-                if (int.TryParse(data[section][key], out iTemp))
+                if (int.TryParse(sanitizeRawValue(data[section][key]), out iTemp))
                 {
                     assign = iTemp;
                     return true;
@@ -384,7 +423,7 @@ namespace plexCreditsDetect
             ushort iTemp;
             if (data.Sections.ContainsSection(section) && data[section].ContainsKey(key))
             {
-                if (ushort.TryParse(data[section][key], out iTemp))
+                if (ushort.TryParse(sanitizeRawValue(data[section][key]), out iTemp))
                 {
                     assign = iTemp;
                     return true;
@@ -398,7 +437,7 @@ namespace plexCreditsDetect
             double dTemp;
             if (data.Sections.ContainsSection(section) && data[section].ContainsKey(key))
             {
-                if (double.TryParse(data[section][key], out dTemp))
+                if (double.TryParse(sanitizeRawValue(data[section][key]), out dTemp))
                 {
                     assign = dTemp;
                     return true;
@@ -411,7 +450,7 @@ namespace plexCreditsDetect
         {
             if (data.Sections.ContainsSection(section) && data[section].ContainsKey(key))
             {
-                assign = data[section][key];
+                assign = sanitizeRawValue(data[section][key]);
                 return true;
             }
             return false;
@@ -422,13 +461,24 @@ namespace plexCreditsDetect
             bool dTemp;
             if (data.Sections.ContainsSection(section) && data[section].ContainsKey(key))
             {
-                if (bool.TryParse(data[section][key], out dTemp))
+                if (bool.TryParse(sanitizeRawValue(data[section][key]), out dTemp))
                 {
                     assign = dTemp;
                     return true;
                 }
             }
             return false;
+        }
+
+
+        string sanitizeRawValue(string raw)
+        {
+            int idx = raw.IndexOf('#');
+            if (idx < 0)
+            {
+                return raw;
+            }
+            return raw.Substring(0, idx).Trim();
         }
     }
 }

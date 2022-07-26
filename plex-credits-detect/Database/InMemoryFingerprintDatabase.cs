@@ -79,15 +79,36 @@ namespace plexCreditsDetect.Database
                 }
             }
 
-            ExecuteDBCommand("CREATE TABLE IF NOT EXISTS ScannedMedia (id TEXT NOT NULL PRIMARY KEY, name TEXT NOT NULL, dir TEXT NOT NULL, LastWriteTimeUtc INTEGER, FileSize INTEGER, DetectionPending BOOLEAN);");
-            ExecuteDBCommand("CREATE INDEX IF NOT EXISTS idx_ScannedMedia_dir ON ScannedMedia(dir);");
-            ExecuteDBCommand("CREATE INDEX IF NOT EXISTS idx_ScannedMedia_DetectionPending ON ScannedMedia(DetectionPending);");
-
-            ExecuteDBCommand("CREATE TABLE IF NOT EXISTS ScannedMedia_Timings (id INTEGER PRIMARY KEY, ScannedMedia_id TEXT NOT NULL REFERENCES ScannedMedia(id), is_plex_intro BOOLEAN NOT NULL, time_offset DOUBLE NOT NULL, end_time_offset DOUBLE NOT NULL, isCredits BOOLEAN);");
-            ExecuteDBCommand("CREATE INDEX IF NOT EXISTS idx_ScannedMedia_Timings_ScannedMedia_id ON ScannedMedia_Timings(ScannedMedia_id);");
-            ExecuteDBCommand("CREATE INDEX IF NOT EXISTS idx_ScannedMedia_Timings_is_plex_intro ON ScannedMedia_Timings(is_plex_intro);");
-            
             ExecuteDBCommand("CREATE TABLE IF NOT EXISTS GlobalData (id TEXT PRIMARY KEY, StringData TEXT, DateData DATETIME, DoubleData DOUBLE, IntData INTEGER);");
+
+            int dbversion = GetIntData("DBVersion");
+
+            if (dbversion < 0)
+            {
+                ExecuteDBCommand("CREATE TABLE IF NOT EXISTS ScannedMedia (id TEXT NOT NULL PRIMARY KEY, name TEXT NOT NULL, dir TEXT NOT NULL, LastWriteTimeUtc INTEGER, FileSize INTEGER, DetectionPending BOOLEAN);");
+                ExecuteDBCommand("CREATE INDEX IF NOT EXISTS idx_ScannedMedia_dir ON ScannedMedia(dir);");
+                ExecuteDBCommand("CREATE INDEX IF NOT EXISTS idx_ScannedMedia_DetectionPending ON ScannedMedia(DetectionPending);");
+
+                ExecuteDBCommand("CREATE TABLE IF NOT EXISTS ScannedMedia_Timings (id INTEGER PRIMARY KEY, ScannedMedia_id TEXT NOT NULL REFERENCES ScannedMedia(id), is_plex_intro BOOLEAN NOT NULL, time_offset DOUBLE NOT NULL, end_time_offset DOUBLE NOT NULL, isCredits BOOLEAN);");
+                ExecuteDBCommand("CREATE INDEX IF NOT EXISTS idx_ScannedMedia_Timings_ScannedMedia_id ON ScannedMedia_Timings(ScannedMedia_id);");
+                ExecuteDBCommand("CREATE INDEX IF NOT EXISTS idx_ScannedMedia_Timings_is_plex_intro ON ScannedMedia_Timings(is_plex_intro);");
+
+            }
+
+            if (dbversion < 1)
+            {
+                ExecuteDBCommand("ALTER TABLE ScannedMedia ADD COLUMN SilenceDetectionDone BOOLEAN DEFAULT FALSE;");
+                ExecuteDBCommand("ALTER TABLE ScannedMedia_Timings ADD COLUMN isSilence BOOLEAN DEFAULT FALSE;");
+                SetIntData("DBVersion", 1);
+            }
+
+            if (dbversion < 2)
+            {
+                ExecuteDBCommand("ALTER TABLE ScannedMedia ADD COLUMN SilenceDetectionPending BOOLEAN DEFAULT FALSE;");
+                ExecuteDBCommand("CREATE INDEX IF NOT EXISTS idx_ScannedMedia_SilenceDetectionPending ON ScannedMedia(SilenceDetectionPending);");
+                SetIntData("DBVersion", 2);
+            }
+
 
         }
 
@@ -98,12 +119,12 @@ namespace plexCreditsDetect.Database
                 { "id", id }
             });
 
-            if (result == null || !result.HasRows || !result.Read())
+            if (!result.Read())
             {
                 return -1;
             }
 
-            return result.GetInt32(0);
+            return result.Get<int>("IntData");
         }
         public void SetIntData(string id, int data)
         {
@@ -120,12 +141,12 @@ namespace plexCreditsDetect.Database
                 { "id", id }
             });
 
-            if (result == null || !result.HasRows || !result.Read())
+            if (!result.Read())
             {
                 return "";
             }
 
-            return result.GetString(0);
+            return result.Get<string>("StringData");
         }
         public void SetStringData(string id, string data)
         {
@@ -142,12 +163,12 @@ namespace plexCreditsDetect.Database
                 { "id", id }
             });
 
-            if (result == null || !result.HasRows || !result.Read())
+            if (!result.Read())
             {
                 return DateTime.MinValue;
             }
 
-            return result.GetDateTime(0);
+            return result.Get<DateTime>("DateData");
         }
         public void SetDateData(string id, DateTime data)
         {
@@ -165,12 +186,12 @@ namespace plexCreditsDetect.Database
                 { "id", id }
             });
 
-            if (result == null || !result.HasRows || !result.Read())
+            if (!result.Read())
             {
                 return -1;
             }
 
-            return result.GetDouble(0);
+            return result.Get<double>("DoubleData");
         }
 
         public void SetDoubleData(string id, double data)
@@ -225,8 +246,10 @@ namespace plexCreditsDetect.Database
             }
         }
 
-        public SQLiteDataReader ExecuteDBQuery(string cmd, Dictionary<string, object> p = null)
+        public SQLResultInfo ExecuteDBQuery(string cmd, Dictionary<string, object> p = null)
         {
+            SQLResultInfo ret = new SQLResultInfo();
+
             var sqlite_cmd = sqlite_conn.CreateCommand();
             sqlite_cmd.CommandText = cmd;
             sqlite_cmd.CommandType = System.Data.CommandType.Text;
@@ -243,7 +266,15 @@ namespace plexCreditsDetect.Database
             {
                 try
                 {
-                    return sqlite_cmd.ExecuteReader();
+                    //var reader = sqlite_cmd.ExecuteReader(System.Data.CommandBehavior.KeyInfo);
+                    ret.reader = sqlite_cmd.ExecuteReader();
+
+                    for (var i = 0; i < ret.reader.FieldCount; i++)
+                    {
+                        ret.columns[ret.reader.GetName(i)] = i;
+                    }
+
+                    return ret;
                 }
                 catch (SQLiteException ex)
                 {
@@ -294,13 +325,13 @@ namespace plexCreditsDetect.Database
         }
         public Episode GetEpisode(Episode ep)
         {
-            var result = ExecuteDBQuery("SELECT id, name, dir, LastWriteTimeUtc, FileSize, DetectionPending " +
+            var result = ExecuteDBQuery("SELECT id, name, dir, LastWriteTimeUtc, FileSize, DetectionPending, SilenceDetectionPending, SilenceDetectionDone " +
                 "FROM ScannedMedia WHERE id = @id LIMIT 1;", new Dictionary<string, object>()
             {
                 { "id", ep.id }
             });
 
-            if (result == null || !result.HasRows || !result.Read())
+            if (!result.Read())
             {
                 ep.InPrivateDB = false;
                 ep.FileSizeInDB = -1;
@@ -309,12 +340,14 @@ namespace plexCreditsDetect.Database
             }
 
             ep.InPrivateDB = true;
-            ep.id = result.GetString(0);
-            ep.name = result.GetString(1);
-            ep.dir = result.GetString(2);
-            ep.LastWriteTimeUtcInDB = DateTime.FromFileTimeUtc(result.GetInt64(3));
-            ep.FileSizeInDB = result.GetInt64(4);
-            ep.DetectionPending = result.GetBoolean(5);
+            ep.id = result.Get<string>("id");
+            ep.name = result.Get<string>("name");
+            ep.dir = result.Get<string>("dir");
+            ep.LastWriteTimeUtcInDB = result.GetUnixDateTime("LastWriteTimeUtc");
+            ep.FileSizeInDB = result.Get<long>("FileSize");
+            ep.DetectionPending = result.Get<bool>("DetectionPending");
+            ep.SilenceDetectionPending = result.Get<bool>("SilenceDetectionPending");
+            ep.SilenceDetectionDone = result.Get<bool>("SilenceDetectionDone");
 
             return ep;
         }
@@ -327,12 +360,12 @@ namespace plexCreditsDetect.Database
                 { "id", id }
             });
 
-            if (result == null || !result.HasRows || !result.Read())
+            if (!result.Read())
             {
                 return false;
             }
 
-            int count = result.GetInt32(0);
+            int count = result.Get<int>("cnt");
 
             return count > 0;
         }
@@ -345,12 +378,12 @@ namespace plexCreditsDetect.Database
                 { "id", id }
             });
 
-            if (result == null || !result.HasRows || !result.Read())
+            if (!result.Read())
             {
                 return DateTime.MinValue;
             }
 
-            return DateTime.FromFileTimeUtc(result.GetInt64(0));
+            return result.GetUnixDateTime("LastWriteTimeUtc");
         }
         public long GetEpisodeFileSize(string id)
         {
@@ -360,12 +393,12 @@ namespace plexCreditsDetect.Database
                 { "id", id }
             });
 
-            if (result == null || !result.HasRows || !result.Read())
+            if (!result.Read())
             {
                 return -1;
             }
 
-            return result.GetInt64(0);
+            return result.Get<long>("FileSize");
         }
 
         public List<Episode> GetPendingEpisodesForSeason(string dir)
@@ -373,29 +406,31 @@ namespace plexCreditsDetect.Database
             List<Episode> eps = new List<Episode>();
 
 
-            var result = ExecuteDBQuery("SELECT id, name, dir, LastWriteTimeUtc, FileSize, DetectionPending " +
-                "FROM ScannedMedia WHERE dir = @dir AND DetectionPending = TRUE;", new Dictionary<string, object>()
+            var result = ExecuteDBQuery("SELECT id, name, dir, LastWriteTimeUtc, FileSize, DetectionPending, SilenceDetectionPending, SilenceDetectionDone " +
+                " FROM ScannedMedia WHERE dir = @dir AND (DetectionPending = TRUE OR SilenceDetectionPending = TRUE);", new Dictionary<string, object>()
             {
                 { "dir", dir }
             });
 
-            if (result == null || !result.HasRows)
+            if (!result.HasRows)
             {
                 return null;
             }
 
             while (result.Read())
             {
-                string id = result.GetString(0);
+                string id = result.Get<string>("id");
 
                 Episode ep = new Episode(id);
                 ep.InPrivateDB = true;
                 ep.id = id;
-                ep.name = result.GetString(1);
-                ep.dir = result.GetString(2);
-                ep.LastWriteTimeUtcInDB = DateTime.FromFileTimeUtc(result.GetInt64(3));
-                ep.FileSizeInDB = result.GetInt64(4);
-                ep.DetectionPending = result.GetBoolean(5);
+                ep.name = result.Get<string>("name");
+                ep.dir = result.Get<string>("dir");
+                ep.LastWriteTimeUtcInDB = result.GetUnixDateTime("LastWriteTimeUtc");
+                ep.FileSizeInDB = result.Get<long>("FileSize");
+                ep.DetectionPending = result.Get<bool>("DetectionPending");
+                ep.SilenceDetectionPending = result.Get<bool>("SilenceDetectionPending");
+                ep.SilenceDetectionDone = result.Get<bool>("SilenceDetectionDone");
 
                 eps.Add(ep);
             }
@@ -406,7 +441,7 @@ namespace plexCreditsDetect.Database
         public void ClearDetectionPendingForDirectory(string dir)
         {
             var result = ExecuteDBCommand("UPDATE ScannedMedia " +
-                " SET DetectionPending = FALSE " +
+                " SET DetectionPending = FALSE, SilenceDetectionPending = FALSE " +
                 " WHERE dir = @dir;", new Dictionary<string, object>()
             {
                 { "dir", dir }
@@ -418,26 +453,28 @@ namespace plexCreditsDetect.Database
             List<Episode> eps = new List<Episode>();
 
 
-            var result = ExecuteDBQuery("SELECT id, name, dir, LastWriteTimeUtc, FileSize, DetectionPending " +
-                "FROM ScannedMedia WHERE DetectionPending = TRUE;");
+            var result = ExecuteDBQuery("SELECT id, name, dir, LastWriteTimeUtc, FileSize, DetectionPending, SilenceDetectionPending, SilenceDetectionDone " +
+                " FROM ScannedMedia WHERE DetectionPending = TRUE OR SilenceDetectionPending = TRUE;");
 
-            if (result == null || !result.HasRows)
+            if (!result.HasRows)
             {
                 return null;
             }
 
             while (result.Read())
             {
-                string id = result.GetString(0);
+                string id = result.Get<string>("id");
 
                 Episode ep = new Episode(id);
                 ep.InPrivateDB = true;
                 ep.id = id;
-                ep.name = result.GetString(1);
-                ep.dir = result.GetString(2);
-                ep.LastWriteTimeUtcInDB = DateTime.FromFileTimeUtc(result.GetInt64(3));
-                ep.FileSizeInDB = result.GetInt64(4);
-                ep.DetectionPending = result.GetBoolean(5);
+                ep.name = result.Get<string>("name");
+                ep.dir = result.Get<string>("dir");
+                ep.LastWriteTimeUtcInDB = result.GetUnixDateTime("LastWriteTimeUtc");
+                ep.FileSizeInDB = result.Get<long>("FileSize");
+                ep.DetectionPending = result.Get<bool>("DetectionPending");
+                ep.SilenceDetectionPending = result.Get<bool>("SilenceDetectionPending");
+                ep.SilenceDetectionDone = result.Get<bool>("SilenceDetectionDone");
 
                 eps.Add(ep);
             }
@@ -448,24 +485,26 @@ namespace plexCreditsDetect.Database
         {
             while (true)
             {
-                var result = ExecuteDBQuery("SELECT id, name, dir, LastWriteTimeUtc, FileSize, DetectionPending " +
-                    "FROM ScannedMedia WHERE DetectionPending = TRUE LIMIT 1;");
+                var result = ExecuteDBQuery("SELECT id, name, dir, LastWriteTimeUtc, FileSize, DetectionPending, SilenceDetectionPending, SilenceDetectionDone " +
+                    " FROM ScannedMedia WHERE DetectionPending = TRUE OR SilenceDetectionPending = TRUE LIMIT 1;");
 
-                if (result == null || !result.HasRows || !result.Read())
+                if (!result.Read())
                 {
                     return null;
                 }
 
-                string id = result.GetString(0);
+                string id = result.Get<string>("id");
 
                 Episode ep = new Episode(id);
                 ep.InPrivateDB = true;
                 ep.id = id;
-                ep.name = result.GetString(1);
-                ep.dir = result.GetString(2);
-                ep.LastWriteTimeUtcInDB = DateTime.FromFileTimeUtc(result.GetInt64(3));
-                ep.FileSizeInDB = result.GetInt64(4);
-                ep.DetectionPending = result.GetBoolean(5);
+                ep.name = result.Get<string>("name");
+                ep.dir = result.Get<string>("dir");
+                ep.LastWriteTimeUtcInDB = result.GetUnixDateTime("LastWriteTimeUtc");
+                ep.FileSizeInDB = result.Get<long>("FileSize");
+                ep.DetectionPending = result.Get<bool>("DetectionPending");
+                ep.SilenceDetectionPending = result.Get<bool>("SilenceDetectionPending");
+                ep.SilenceDetectionDone = result.Get<bool>("SilenceDetectionDone");
 
                 return ep;
             }
@@ -477,16 +516,16 @@ namespace plexCreditsDetect.Database
             string dir;
 
             var result = ExecuteDBQuery("SELECT distinct dir " +
-                "FROM ScannedMedia WHERE DetectionPending = TRUE;");
+                " FROM ScannedMedia WHERE DetectionPending = TRUE OR SilenceDetectionPending = TRUE;");
 
-            if (result == null || !result.HasRows)
+            if (!result.HasRows)
             {
                 return null;
             }
 
             while (result.Read())
             {
-                dir = result.GetString(0);
+                dir = result.Get<string>("dir");
                 if (!Scanner.ignoreDirectories.Contains(dir))
                 {
                     dirs.Add(Program.getFullDirectory(dir));
@@ -528,30 +567,31 @@ namespace plexCreditsDetect.Database
             });
         }
 
-        public List<Episode.Segment> GetNonPlexTimings(Episode ep)
+        public List<Segment> GetNonPlexTimings(Episode ep)
         {
-            List<Episode.Segment> segments = new List<Episode.Segment>();
+            List<Segment> segments = new List<Segment>();
 
-            var result = ExecuteDBQuery("SELECT time_offset, end_time_offset, isCredits " +
-                "FROM ScannedMedia_Timings WHERE ScannedMedia_id = @ScannedMedia_id AND is_plex_intro = @is_plex_intro;", new Dictionary<string, object>()
+            var result = ExecuteDBQuery("SELECT time_offset, end_time_offset, isCredits, isSilence " +
+                " FROM ScannedMedia_Timings WHERE ScannedMedia_id = @ScannedMedia_id AND is_plex_intro = @is_plex_intro;", new Dictionary<string, object>()
             {
                 { "ScannedMedia_id", ep.id },
                 { "is_plex_intro", false }
             });
 
-            if (result == null || !result.HasRows)
+            if (!result.HasRows)
             {
                 return null;
             }
 
             while (result.Read())
             {
-                Episode.Segment seg = new Episode.Segment();
+                Segment seg = new Segment();
 
-                seg.start = result.GetDouble(0);
-                seg.end = result.GetDouble(1);
+                seg.start = result.Get<double>("time_offset");
+                seg.end = result.Get<double>("end_time_offset");
 
-                seg.isCredits = result.GetBoolean(2);
+                seg.isCredits = result.Get<bool>("isCredits");
+                seg.isSilence = result.Get<bool>("isSilence");
 
                 segments.Add(seg);
             }
@@ -562,8 +602,9 @@ namespace plexCreditsDetect.Database
         public List<Episode> GetNonPlexTimingsForDir(string dir)
         {
             List<Episode> episodes = new List<Episode>();
+            Dictionary<string, int> columns;
 
-            var result = ExecuteDBQuery("SELECT m.id as id, LastWriteTimeUtc, FileSize, DetectionPending, time_offset, end_time_offset, isCredits, is_plex_intro " +
+            var result = ExecuteDBQuery("SELECT m.id as id, LastWriteTimeUtc, FileSize, DetectionPending, SilenceDetectionPending, SilenceDetectionDone, time_offset, end_time_offset, isCredits, isSilence, is_plex_intro " +
                 " FROM ScannedMedia as m LEFT JOIN ScannedMedia_Timings as t ON t.ScannedMedia_id = m.id " +
                 " WHERE m.dir = @dir; ", new Dictionary<string, object>()
             {
@@ -571,7 +612,7 @@ namespace plexCreditsDetect.Database
                 { "is_plex_intro", false }
             });
 
-            if (result == null || !result.HasRows)
+            if (!result.HasRows)
             {
                 return episodes;
             }
@@ -581,28 +622,31 @@ namespace plexCreditsDetect.Database
             while (result.Read())
             {
                 bool isPlexIntro = false;
-                Episode.Segment seg = null;
+                Segment seg = null;
 
-                string id = result.GetString(0);
+                string id = result.Get<string>("id");
                 ep = episodes.FirstOrDefault(x => x.id == id);
                 if (ep == null)
                 {
                     ep = new Episode(id);
                     ep.InPrivateDB = true;
-                    ep.LastWriteTimeUtcInDB = DateTime.FromFileTimeUtc(result.GetInt64(1));
-                    ep.FileSizeInDB = result.GetInt64(2);
+                    ep.LastWriteTimeUtcInDB = result.GetUnixDateTime("LastWriteTimeUtc");
+                    ep.FileSizeInDB = result.Get<long>("FileSize");
                     episodes.Add(ep);
                 }
 
-                ep.DetectionPending = result.GetBoolean(3);
+                ep.DetectionPending = result.Get<bool>("DetectionPending");
+                ep.SilenceDetectionPending = result.Get<bool>("SilenceDetectionPending");
+                ep.SilenceDetectionDone = result.Get<bool>("SilenceDetectionDone");
 
-                if (!result.IsDBNull(4))
+                if (!result.IsDBNull("time_offset"))
                 {
-                    seg = new Episode.Segment();
-                    seg.start = result.GetDouble(4);
-                    seg.end = result.GetDouble(5);
-                    seg.isCredits = result.GetBoolean(6);
-                    isPlexIntro = result.GetBoolean(7);
+                    seg = new Segment();
+                    seg.start = result.Get<double>("time_offset");
+                    seg.end = result.Get<double>("end_time_offset");
+                    seg.isCredits = result.Get<bool>("isCredits");
+                    seg.isSilence = result.Get<bool>("isSilence");
+                    isPlexIntro = result.Get<bool>("is_plex_intro");
 
                     if (!isPlexIntro)
                     {
@@ -619,32 +663,35 @@ namespace plexCreditsDetect.Database
         public void Insert(Episode ep)
         {
             ExecuteDBCommand("REPLACE INTO ScannedMedia " +
-                "(id, name, dir, LastWriteTimeUtc, FileSize, DetectionPending) VALUES " +
-                "(@id, @name, @dir, @LastWriteTimeUtc, @FileSize, @DetectionPending);", new Dictionary<string, object>()
+                " (id, name, dir, LastWriteTimeUtc, FileSize, DetectionPending, SilenceDetectionPending, SilenceDetectionDone) VALUES " +
+                " (@id, @name, @dir, @LastWriteTimeUtc, @FileSize, @DetectionPending, @SilenceDetectionPending, @SilenceDetectionDone);", new Dictionary<string, object>()
             {
                 { "id", ep.id },
                 { "name", ep.name },
                 { "dir", ep.dir },
                 { "LastWriteTimeUtc", ep.LastWriteTimeUtcOnDisk.ToFileTimeUtc() },
                 { "FileSize", ep.FileSizeOnDisk },
-                { "DetectionPending", ep.DetectionPending }
+                { "DetectionPending", ep.DetectionPending },
+                { "SilenceDetectionPending", ep.SilenceDetectionPending },
+                { "SilenceDetectionDone", ep.SilenceDetectionDone }
             });
             ep.InPrivateDB = true;
             ep.LastWriteTimeUtcInDB = ep.LastWriteTimeUtcOnDisk;
             ep.FileSizeInDB = ep.FileSizeOnDisk;
         }
 
-        public void InsertTiming(Episode ep, Episode.Segment segment, bool isPlexIntro)
+        public void InsertTiming(Episode ep, Segment segment, bool isPlexIntro)
         {
             ExecuteDBCommand("INSERT INTO ScannedMedia_Timings " +
-                "(ScannedMedia_id, is_plex_intro, time_offset, end_time_offset, isCredits) VALUES " +
-                "(@ScannedMedia_id, @is_plex_intro, @time_offset, @end_time_offset, @isCredits);", new Dictionary<string, object>()
+                " (ScannedMedia_id, is_plex_intro, time_offset, end_time_offset, isCredits, isSilence) VALUES " +
+                " (@ScannedMedia_id, @is_plex_intro, @time_offset, @end_time_offset, @isCredits, @isSilence);", new Dictionary<string, object>()
             {
                 { "ScannedMedia_id", ep.id },
                 { "is_plex_intro", isPlexIntro },
                 { "time_offset", segment.start },
                 { "end_time_offset", segment.end },
-                { "isCredits", segment.isCredits }
+                { "isCredits", segment.isCredits },
+                { "isSilence", segment.isSilence }
             });
         }
 
@@ -659,7 +706,9 @@ namespace plexCreditsDetect.Database
                 { "FileSize", ep.FileSizeOnDisk.ToString() },
                 { "start", start.ToString() },
                 { "isCredits", isCredits.ToString() },
-                { "DetectionPending", ep.DetectionPending.ToString() }
+                { "DetectionPending", ep.DetectionPending.ToString() },
+                { "SilenceDetectionPending", ep.SilenceDetectionPending.ToString() },
+                { "SilenceDetectionDone", ep.SilenceDetectionDone.ToString() }
             }, avtype);
 
 

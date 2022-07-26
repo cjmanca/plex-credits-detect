@@ -22,41 +22,56 @@ namespace plexCreditsDetect
 
         internal bool CheckIfFileNeedsScanning(Episode ep, Settings settings, bool insertCheck = false)
         {
+            bool trueValForNeedsScanning = settings.maximumMatches > 0 && (settings.useVideo || settings.useAudio);
+            bool trueValForNeedsSilenceScanning = settings.detectSilenceAfterCredits;
+
             if (!ep.Exists) // can't scan something that doesn't exist
             {
                 ep.needsScanning = false;
+                ep.needsSilenceScanning = false;
                 return false;
             }
             
             if (!IsVideoExtension(ep))
             {
                 ep.needsScanning = false;
+                ep.needsSilenceScanning = false;
                 return false;
             }
 
             if (settings.forceRedetect)
             {
-                ep.needsScanning = true;
+                ep.needsScanning = trueValForNeedsScanning;
+                ep.needsSilenceScanning = trueValForNeedsSilenceScanning;
                 return true;
             }
 
             if (!ep.InPrivateDB)
             {
+                if (ep.meta_id < 0)
+                {
+                    ep.needsScanning = false;
+                    ep.needsSilenceScanning = false;
+                    return false;
+                }
+                ep.needsScanning = trueValForNeedsScanning;
+                ep.needsSilenceScanning = trueValForNeedsSilenceScanning;
                 return insertCheck;
             }
 
             if (ep.FileSizeOnDisk != ep.FileSizeInDB)
             {
-                ep.needsScanning = true;
+                ep.needsScanning = trueValForNeedsScanning;
+                ep.needsSilenceScanning = trueValForNeedsSilenceScanning;
                 return true;
             }
 
-
-            if (settings == null)
+            if (settings.detectSilenceAfterCredits && !ep.SilenceDetectionDone)
             {
-                settings = new Settings(ep.fullDirPath);
+                ep.needsSilenceScanning = trueValForNeedsSilenceScanning;
             }
-            if (settings.maximumMatches > 0)
+
+            if (trueValForNeedsScanning)
             {
                 var timings = db.GetNonPlexTimings(ep);
 
@@ -65,8 +80,8 @@ namespace plexCreditsDetect
                     ep.needsScanning = true;
                     return true;
                 }
-                int intros = timings.Count(x => x.isCredits == false);
-                int credits = timings.Count(x => x.isCredits == true);
+                int intros = timings.Count(x => x.isCredits == false && x.isSilence == false);
+                int credits = timings.Count(x => x.isCredits == true && x.isSilence == false);
 
                 if (intros < settings.introMatchCount)
                 {
@@ -81,7 +96,7 @@ namespace plexCreditsDetect
             }
 
             ep.needsScanning = false;
-            return false;
+            return ep.needsSilenceScanning;
         }
 
         FingerprintConfiguration GenerateFingerprintAudioConfig(Settings settings)
@@ -122,7 +137,47 @@ namespace plexCreditsDetect
             return config;
         }
 
-        internal void FingerprintFile(Episode ep, bool isCredits, Settings settings = null, Episode.Segment seg = null, int partNum = -1)
+        internal Segment GetTimings(Episode ep, Settings settings, bool isCredits, Segment seg = null)
+        {
+            Segment ret = new Segment();
+
+            double duration = GetSearchDuration(ep, settings, isCredits);
+            ret.start = GetSearchStartAt(ep, settings, isCredits);
+
+            double plexEnd = 0;
+
+            if (ep.plexTimings != null)
+            {
+                plexEnd = ep.plexTimings.end + 30;
+            }
+
+            if (!isCredits && ret.start < plexEnd)
+            {
+                ret.start = plexEnd;
+            }
+
+            ret.end = Math.Min(ret.start + duration, ep.duration);
+
+            if (!isCredits && ret.end > ep.duration * settings.introEnd)
+            {
+                ret.end = ep.duration * settings.introEnd;
+            }
+
+            if (seg != null)
+            {
+                ret.start = seg.start - 30;
+                ret.end = seg.end + 30;
+            }
+
+            if (ret.end > ep.duration)
+            {
+                ret.end = ep.duration;
+            }
+
+            return ret;
+        }
+
+        internal void FingerprintFile(Episode ep, bool isCredits, Settings settings = null, Segment seg = null, int partNum = -1)
         {
             if (!ep.Exists || ep.duration <= 0)
             {
@@ -151,44 +206,9 @@ namespace plexCreditsDetect
                         avtype |= MediaType.Video;
                     }
 
-                    var duration = GetSearchDuration(ep, settings, isCredits);
-                    var start = GetSearchStartAt(ep, settings, isCredits);
+                    var times = GetTimings(ep, settings, isCredits, seg);
 
-                    double plexEnd = 0;
-
-                    if (ep.plexTimings != null)
-                    {
-                        plexEnd = ep.plexTimings.end + 30;
-                    }
-
-                    if (!isCredits && start < plexEnd)
-                    {
-                        start = plexEnd;
-                    }
-
-                    var end = Math.Min(start + duration, ep.duration);
-
-                    if (!isCredits && end > ep.duration * settings.introEnd)
-                    {
-                        end = ep.duration * settings.introEnd;
-                    }
-
-                    duration = end - start;
-
-                    if (seg != null)
-                    {
-                        start = seg.start - 30;
-                        end = seg.end + 30;
-                        duration = end - start;
-                    }
-
-                    if (end > ep.duration)
-                    {
-                        end = ep.duration;
-                    }
-
-
-                    Console.WriteLine($"Fingerprinting: {ep.id} ({TimeSpan.FromSeconds(start):g} - {TimeSpan.FromSeconds(end):g})");
+                    Console.WriteLine($"Fingerprinting: {ep.id} ({TimeSpan.FromSeconds(times.start):g} - {TimeSpan.FromSeconds(times.end):g})");
 
                     string creditSnippet = isCredits ? "credits" : "intro";
                     string tempFile = "";
@@ -202,7 +222,7 @@ namespace plexCreditsDetect
                         tempFile = Program.PathCombine(settings.TempDirectoryPath, $"{creditSnippet}.{Path.GetFileNameWithoutExtension(ep.name)}.mkv");
                     }
 
-                    if (!ffmpeghelper.CutVideo(start, end, ep.fullPath, tempFile, settings.useVideo, settings.useAudio))
+                    if (!ffmpeghelper.CutVideo(times.start, times.end, ep.fullPath, tempFile, settings.useVideo, settings.useAudio || settings.detectSilenceAfterCredits, settings.sampleRate))
                     {
                         return;
                     }
@@ -219,7 +239,7 @@ namespace plexCreditsDetect
                                                 .Result;
 
                     // store hashes in the database for later retrieval
-                    db.InsertHash(ep, hashedFingerprint, avtype, isCredits, start, partNum);
+                    db.InsertHash(ep, hashedFingerprint, avtype, isCredits, times.start, partNum);
                 }
                 catch (Exception e)
                 {
@@ -282,7 +302,7 @@ namespace plexCreditsDetect
 
 
 
-        Episode CheckSingleEpisode(Episode ep, Settings settings)
+        Episode CheckSingleEpisode(Episode ep)
         {
             if (!ep.Exists)
             {
@@ -296,19 +316,21 @@ namespace plexCreditsDetect
 
             if (ep.meta_id < 0)
             {
-                Console.WriteLine($"{ep.id}: Metadata not found in plex db. Removing.");
+                //Console.WriteLine($"{ep.id}: Metadata not found in plex db. Removing.");
                 if (ep.InPrivateDB)
                 {
                     db.DeleteEpisodeTimings(ep);
                     db.DeleteEpisode(ep);
                 }
+                ep.DetectionPending = false;
+                ep.needsScanning = false;
                 return null;
             }
 
             if (!ep.InPrivateDB)
             {
                 // metadata was found in plex db, so update our db with the episode
-                Console.WriteLine($"{ep.id}: Adding to local db.");
+                //Console.WriteLine($"{ep.id}: Adding to local db.");
                 ep.DetectionPending = true;
                 db.Insert(ep);
             }
@@ -378,10 +400,10 @@ namespace plexCreditsDetect
                 Console.WriteLine("");
                 Console.WriteLine($"Matching: {ep.id}");
 
-                Episode.Segments audioSegments = new Episode.Segments();
-                Episode.Segments videoSegments = new Episode.Segments();
-                Episode.Segments audioSegmentsCredits = new Episode.Segments();
-                Episode.Segments videoSegmentsCredits = new Episode.Segments();
+                Segments audioSegments = new Segments();
+                Segments videoSegments = new Segments();
+                Segments audioSegmentsCredits = new Segments();
+                Segments videoSegmentsCredits = new Segments();
 
                 if (settings.introMatchCount > 0)
                 {
@@ -395,8 +417,8 @@ namespace plexCreditsDetect
                 if (audioSegments.allSegments.Any() || videoSegments.allSegments.Any() || audioSegmentsCredits.allSegments.Any() || videoSegmentsCredits.allSegments.Any())
                 {
 
-                    Episode.Segments validatedSegments;
-                    Episode.Segments validatedSegmentsCredits;
+                    Segments validatedSegments;
+                    Segments validatedSegmentsCredits;
 
                     if (settings.useAudio && settings.useVideo)
                     {
@@ -436,8 +458,6 @@ namespace plexCreditsDetect
 
                     ep.segments.allSegments.Sort((a, b) => a.start.CompareTo(b.start));
 
-                    InsertTimings(ep, settings);
-
                     return validatedSegments.allSegments.Count() + validatedSegmentsCredits.allSegments.Count();
                 }
 
@@ -466,14 +486,23 @@ namespace plexCreditsDetect
                 db.DeleteEpisodeTimings(ep);
                 plexDB.DeleteExistingIntros(ep.meta_id);
 
+                Segments segments = new Segments();
 
                 for (int i = 0; i < ep.segments.allSegments.Count; i++)
                 {
-                    ep.segments.allSegments[i].start -= settings.shiftSegmentBySeconds;
-                    ep.segments.allSegments[i].end -= settings.shiftSegmentBySeconds;
-
                     db.InsertTiming(ep, ep.segments.allSegments[i], false);
-                    plexDB.Insert(ep.meta_id, ep.segments.allSegments[i], i + 1);
+
+                    segments.AddSegment(ep.segments.allSegments[i], settings.PermittedGap, true);
+                }
+
+                segments.allSegments.Sort((a, b) => a.start.CompareTo(b.start));
+
+                for (int i = 0; i < segments.allSegments.Count; i++)
+                {
+                    segments.allSegments[i].start -= settings.shiftSegmentBySeconds;
+                    segments.allSegments[i].end -= settings.shiftSegmentBySeconds;
+
+                    plexDB.Insert(ep.meta_id, segments.allSegments[i], i + 1);
                 }
             }
             catch (Exception e)
@@ -505,317 +534,356 @@ namespace plexCreditsDetect
             Stopwatch sw = new Stopwatch();
             sw.Start();
 
-            processed = 0;
-
-            db.SetupNewScan();
-
-            Episode ep = null;
-
-            var files = Directory.EnumerateFiles(path).ToList();
-
             string relDir = Program.getRelativeDirectory(Program.PathCombine(path, "dud"));
 
-            List<Episode> allEpisodes;
-
-            List<Episode> bestIntros = new List<Episode>();
-            List<Episode.Segment> bestIntroSegments = new List<Episode.Segment>();
-            List<Episode> bestCredits = new List<Episode>();
-            List<Episode.Segment> bestCreditSegments = new List<Episode.Segment>();
-            List<Episode> randomEpisodes = new List<Episode>();
-
-            int totalEpisodesWithAllIntrosDetected = 0;
-            int totalEpisodesWithAllCreditsDetected = 0;
-
-            bool tryQuickDetect = false;
-            int remainingToFind = 0;
-
-
-            
-            tryQuickDetect = true;
-            remainingToFind = 0;
-
-            allEpisodes = db.GetNonPlexTimingsForDir(relDir);
-
-            foreach (var item in files)
+            try
             {
-                ep = allEpisodes.FirstOrDefault(x => x.fullPath == item);
-                if (ep == null)
+                processed = 0;
+
+                db.SetupNewScan();
+
+                Episode ep = null;
+
+                var files = Directory.EnumerateFiles(path).ToList();
+
+
+                List<Episode> allEpisodes;
+
+                List<Episode> bestIntros = new List<Episode>();
+                List<Segment> bestIntroSegments = new List<Segment>();
+                List<Episode> bestCredits = new List<Episode>();
+                List<Segment> bestCreditSegments = new List<Segment>();
+                List<Episode> randomEpisodes = new List<Episode>();
+
+                int totalEpisodesWithAllIntrosDetected = 0;
+                int totalEpisodesWithAllCreditsDetected = 0;
+
+                bool tryQuickDetect = false;
+                int remainingToFind = 0;
+
+
+
+                tryQuickDetect = true;
+                remainingToFind = 0;
+
+                allEpisodes = db.GetNonPlexTimingsForDir(relDir);
+
+                foreach (var item in files)
                 {
-                    ep = new Episode(item);
-                    allEpisodes.Add(ep);
-                }
-            }
-
-
-            for (int i = 0; i < settings.introMatchCount; i++)
-            {
-                bestIntros.Add(null);
-                bestIntroSegments.Add(new Episode.Segment(0, 0));
-            }
-            for (int i = 0; i < settings.creditsMatchCount; i++)
-            {
-                bestCredits.Add(null);
-                bestCreditSegments.Add(new Episode.Segment(0, 0));
-            }
-
-            foreach (var item in allEpisodes)
-            {
-                ep = CheckSingleEpisode(item, settings);
-                if (ep == null)
-                {
-                    continue;
-                }
-
-                CheckIfFileNeedsScanning(ep, settings);
-            }
-
-            allEpisodes.RemoveAll(x => !x.passed);
-
-            int totalNeedsScanning = allEpisodes.Count(x => x.needsScanning);
-            int totalToFingerprint = allEpisodes.Count();
-
-            if (totalNeedsScanning <= 0)
-            {
-                CleanTemp();
-                db.ClearDetectionPendingForDirectory(relDir);
-                return;
-            }
-
-            int numberToQuickTry = 5;
-
-            if (totalNeedsScanning > totalToFingerprint / 4)
-            {
-                tryQuickDetect = false;
-            }
-
-            allEpisodes.Sort((a, b) => a.name.CompareTo(b.name) );
-
-            if (tryQuickDetect)
-            {
-                int epCount = 0;
-
-                foreach (var item in allEpisodes)
-                {
-                    if (randomEpisodes.Count() < (double)epCount / ((double)totalToFingerprint / (double)numberToQuickTry))
+                    if (!IsVideoExtension(item))
                     {
-                        randomEpisodes.Add(item);
+                        continue;
                     }
-
-                    int introCount = item.segments.allSegments.Count(x => !x.isCredits);
-                    int creditCount = item.segments.allSegments.Count(x => x.isCredits);
-
-                    if (introCount == settings.introMatchCount)
+                    ep = allEpisodes.FirstOrDefault(x => x.fullPath == item);
+                    if (ep == null)
                     {
-                        totalEpisodesWithAllIntrosDetected++;
-                        int count = 0;
-                        foreach (var seg in item.segments.allSegments)
-                        {
-                            if (!seg.isCredits)
-                            {
-                                if (count < settings.introMatchCount && seg.duration > bestIntroSegments[count].duration)
-                                {
-                                    bestIntroSegments[count] = seg;
-                                    bestIntros[count] = item;
-                                }
-                                count++;
-                            }
-                        }
+                        ep = new Episode(item);
+                        allEpisodes.Add(ep);
                     }
-                    if (creditCount == settings.creditsMatchCount)
-                    {
-                        totalEpisodesWithAllCreditsDetected++;
-                        int count = 0;
-                        foreach (var seg in item.segments.allSegments)
-                        {
-                            if (seg.isCredits)
-                            {
-                                if (count < settings.creditsMatchCount && seg.duration > bestCreditSegments[count].duration)
-                                {
-                                    bestCreditSegments[count] = seg;
-                                    bestCredits[count] = item;
-                                }
-                                count++;
-                            }
-                        }
-                    }
-
-                    epCount++;
                 }
 
 
-                if (settings.introMatchCount > 0)
-                {
-                    if (totalEpisodesWithAllIntrosDetected < 8)
-                    {
-                        tryQuickDetect = false;
-                    }
-                    else
-                    {
-                        foreach (var item in bestIntros)
-                        {
-                            if (item == null)
-                            {
-                                tryQuickDetect = false;
-                            }
-                        }
-                    }
-                }
-                if (settings.creditsMatchCount > 0)
-                {
-                    if (totalEpisodesWithAllCreditsDetected < 8)
-                    {
-                        tryQuickDetect = false;
-                    }
-                    else
-                    {
-                        foreach (var item in bestCredits)
-                        {
-                            if (item == null)
-                            {
-                                tryQuickDetect = false;
-                            }
-                        }
-                    }
-                }
-            }
 
 
-            if (tryQuickDetect)
-            {
                 for (int i = 0; i < settings.introMatchCount; i++)
                 {
-                    //FingerprintFile(bestIntros[i], false, settings, bestIntroSegments[i], i);
-                    FingerprintFile(bestIntros[i], false, settings);
+                    bestIntros.Add(null);
+                    bestIntroSegments.Add(new Segment(0, 0));
                 }
                 for (int i = 0; i < settings.creditsMatchCount; i++)
                 {
-                    //FingerprintFile(bestCredits[i], true, settings, bestCreditSegments[i], i);
-                    FingerprintFile(bestCredits[i], true, settings);
+                    bestCredits.Add(null);
+                    bestCreditSegments.Add(new Segment(0, 0));
                 }
-                foreach (var item in randomEpisodes)
+
+                foreach (var item in allEpisodes)
                 {
+                    ep = CheckSingleEpisode(item);
+                    if (ep == null)
+                    {
+                        continue;
+                    }
+
+                    CheckIfFileNeedsScanning(ep, settings);
+                }
+
+                allEpisodes.RemoveAll(x => !x.passed);
+
+                int totalNeedsScanning = allEpisodes.Count(x => x.needsScanning);
+                int totalToFingerprint = allEpisodes.Count();
+
+                int totalNeedsSilenceScanning = allEpisodes.Count(x => x.needsSilenceScanning);
+
+
+
+                if (totalNeedsSilenceScanning <= 0 && (totalNeedsScanning <= 0 || totalToFingerprint < 2))
+                {
+                    CleanTemp();
+                    db.ClearDetectionPendingForDirectory(relDir);
+                    return;
+                }
+
+                int numberToQuickTry = 5;
+
+                if (totalNeedsScanning > totalToFingerprint / 4)
+                {
+                    tryQuickDetect = false;
+                }
+
+                allEpisodes.Sort((a, b) => a.name.CompareTo(b.name));
+
+
+                if (totalNeedsSilenceScanning > 0 && (totalNeedsScanning <= 0 || totalToFingerprint < 2))
+                {
+                    foreach (var item in allEpisodes)
+                    {
+                        if (item.needsSilenceScanning)
+                        {
+                            HandleInsert(item, settings, 0);
+                        }
+                    }
+
+                    return;
+                }
+
+
+                if (tryQuickDetect)
+                {
+                    int epCount = 0;
+
+                    foreach (var item in allEpisodes)
+                    {
+                        if (randomEpisodes.Count() < (double)epCount / ((double)totalToFingerprint / (double)numberToQuickTry))
+                        {
+                            randomEpisodes.Add(item);
+                        }
+
+                        int introCount = item.segments.allSegments.Count(x => !x.isCredits && !x.isSilence);
+                        int creditCount = item.segments.allSegments.Count(x => x.isCredits && !x.isSilence);
+
+                        if (introCount == settings.introMatchCount)
+                        {
+                            totalEpisodesWithAllIntrosDetected++;
+                            int count = 0;
+                            foreach (var seg in item.segments.allSegments)
+                            {
+                                if (!seg.isCredits && !seg.isSilence)
+                                {
+                                    if (count < settings.introMatchCount && seg.duration > bestIntroSegments[count].duration)
+                                    {
+                                        bestIntroSegments[count] = seg;
+                                        bestIntros[count] = item;
+                                    }
+                                    count++;
+                                }
+                            }
+                        }
+                        if (creditCount == settings.creditsMatchCount)
+                        {
+                            totalEpisodesWithAllCreditsDetected++;
+                            int count = 0;
+                            foreach (var seg in item.segments.allSegments)
+                            {
+                                if (seg.isCredits && !seg.isSilence)
+                                {
+                                    if (count < settings.creditsMatchCount && seg.duration > bestCreditSegments[count].duration)
+                                    {
+                                        bestCreditSegments[count] = seg;
+                                        bestCredits[count] = item;
+                                    }
+                                    count++;
+                                }
+                            }
+                        }
+
+                        epCount++;
+                    }
+
+
                     if (settings.introMatchCount > 0)
                     {
-                        FingerprintFile(item, false, settings);
+                        if (totalEpisodesWithAllIntrosDetected < 8)
+                        {
+                            tryQuickDetect = false;
+                        }
+                        else
+                        {
+                            foreach (var item in bestIntros)
+                            {
+                                if (item == null)
+                                {
+                                    tryQuickDetect = false;
+                                }
+                            }
+                        }
                     }
                     if (settings.creditsMatchCount > 0)
                     {
-                        FingerprintFile(item, true, settings);
-                    }
-                }
-
-
-                
-                foreach (var item in allEpisodes)
-                {
-                    ep = item;
-                    int detected = DetectSingleEpisode(ep, settings);
-
-                    if (ep.segments.allSegments.Count() >= settings.maximumMatches)
-                    {
-                        if (ep.DetectionPending)
+                        if (totalEpisodesWithAllCreditsDetected < 8)
                         {
-                            ep.DetectionPending = false;
-                            db.Insert(ep);
+                            tryQuickDetect = false;
                         }
-                    }
-                    else
-                    {
-                        remainingToFind++;
-                    }
-                }
-            }
-            
-
-            if (!tryQuickDetect || remainingToFind > 0)
-            {
-                //db.SetupNewScan();
-
-                DoFullFingerprint(allEpisodes, settings);
-
-                foreach (var item in allEpisodes)
-                {
-                    ep = item;
-                    int detected = DetectSingleEpisode(ep, settings);
-
-                    if (ep.DetectionPending)
-                    {
-                        ep.DetectionPending = false;
-                        db.Insert(ep);
-                    }
-
-                }
-
-            }
-
-
-
-            /*
-            try
-            {
-                if (processed <= 0)
-                {
-                    path = Program.getRelativeDirectory(Program.PathCombine(path, "tmp"));
-                    //Console.WriteLine($"No intros/credits detected in scanned files in {path}");
-                    List<Episode> pending = db.GetPendingEpisodesForSeason(path);
-
-                    if (pending != null)
-                    {
-                        Console.WriteLine($"List: ");
-                        foreach (var item in pending)
+                        else
                         {
-                            Console.Write($"{item.id}: ");
-                            if (plexDB.GetMetadataID(item) < 0) // pending item is no longer in the plex DB. Clean up.
+                            foreach (var item in bestCredits)
                             {
-                                Console.WriteLine($" Metadata not found in plex db. Removing.");
-                                db.DeleteEpisodeTimings(item);
-                                db.DeleteEpisode(item);
-                            }
-                            else
-                            {
-                                Console.WriteLine(" Still in Plex DB but unable to process. Ignoring until next restart.");
+                                if (item == null)
+                                {
+                                    tryQuickDetect = false;
+                                }
                             }
                         }
                     }
-
-                    ignoreDirectories.Add(path);
                 }
 
+
+                if (tryQuickDetect)
+                {
+                    for (int i = 0; i < settings.introMatchCount; i++)
+                    {
+                        //FingerprintFile(bestIntros[i], false, settings, bestIntroSegments[i], i);
+                        FingerprintFile(bestIntros[i], false, settings);
+                    }
+                    for (int i = 0; i < settings.creditsMatchCount; i++)
+                    {
+                        //FingerprintFile(bestCredits[i], true, settings, bestCreditSegments[i], i);
+                        FingerprintFile(bestCredits[i], true, settings);
+                    }
+                    foreach (var item in randomEpisodes)
+                    {
+                        if (settings.introMatchCount > 0)
+                        {
+                            FingerprintFile(item, false, settings);
+                        }
+                        if (settings.creditsMatchCount > 0)
+                        {
+                            FingerprintFile(item, true, settings);
+                        }
+                    }
+
+
+
+                    foreach (var item in allEpisodes)
+                    {
+                        ep = item;
+                        int detected = DetectSingleEpisode(ep, settings);
+
+                        if (ep.segments.allSegments.Count() >= settings.maximumMatches)
+                        {
+                            HandleInsert(ep, settings, detected);
+                        }
+                        else
+                        {
+                            remainingToFind++;
+                        }
+                    }
+                }
+
+
+                if (!tryQuickDetect || remainingToFind > 0)
+                {
+                    //db.SetupNewScan();
+
+                    DoFullFingerprint(allEpisodes, settings);
+
+                    foreach (var item in allEpisodes)
+                    {
+                        ep = item;
+                        int detected = DetectSingleEpisode(ep, settings);
+
+                        HandleInsert(ep, settings, detected);
+
+                    }
+
+                }
+
+
+
+                /*
+                try
+                {
+                    if (processed <= 0)
+                    {
+                        path = Program.getRelativeDirectory(Program.PathCombine(path, "tmp"));
+                        //Console.WriteLine($"No intros/credits detected in scanned files in {path}");
+                        List<Episode> pending = db.GetPendingEpisodesForSeason(path);
+
+                        if (pending != null)
+                        {
+                            Console.WriteLine($"List: ");
+                            foreach (var item in pending)
+                            {
+                                Console.Write($"{item.id}: ");
+                                if (plexDB.GetMetadataID(item) < 0) // pending item is no longer in the plex DB. Clean up.
+                                {
+                                    Console.WriteLine($" Metadata not found in plex db. Removing.");
+                                    db.DeleteEpisodeTimings(item);
+                                    db.DeleteEpisode(item);
+                                }
+                                else
+                                {
+                                    Console.WriteLine(" Still in Plex DB but unable to process. Ignoring until next restart.");
+                                }
+                            }
+                        }
+
+                        ignoreDirectories.Add(path);
+                    }
+
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine("ScanDirectory Exception (3): " + e.ToString());
+                }
+                */
+
             }
-            catch (Exception e)
+            finally
             {
-                Console.WriteLine("ScanDirectory Exception (3): " + e.ToString());
+                CleanTemp();
+                //plexDB.EndActivity();
+
+                db.ClearDetectionPendingForDirectory(relDir);
+
+                Console.WriteLine("");
+                Console.WriteLine($"Detection took {sw.Elapsed:g}");
             }
-            */
 
-            CleanTemp();
-            //plexDB.EndActivity();
-
-            db.ClearDetectionPendingForDirectory(relDir);
-
-            Console.WriteLine("");
-            Console.WriteLine($"Detection took {sw.Elapsed:g}");
         }
 
-        
-        void DoSingleQuery(Settings settings, bool isCredits, Episode ep, MediaType avtype, Episode.Segments audioSegments, Episode.Segments videoSegments)
+        void HandleInsert(Episode ep, Settings settings, int detected)
         {
-            var duration = GetSearchDuration(ep, settings, isCredits);
-            var start = GetSearchStartAt(ep, settings, isCredits);
+            bool silenceDetected = false;
 
-            double plexEnd = 0;
-
-            if (ep.plexTimings != null)
+            if (settings.detectSilenceAfterCredits && (ep.needsScanning || ep.needsSilenceScanning))
             {
-                plexEnd = ep.plexTimings.end + 30;
-            }
+                if (!ep.needsScanning)
+                {
+                    Console.WriteLine("");
+                    Console.WriteLine($"Matching: {ep.id}");
+                }
 
-            if (!isCredits && start < plexEnd)
+                detected += DetectSilence(ep, settings);
+                ep.needsSilenceScanning = false;
+                ep.SilenceDetectionDone = true;
+                silenceDetected = true;
+            }
+            if (ep.needsScanning || silenceDetected)
             {
-                start = plexEnd;
-            }
+                if (detected > 0)
+                {
+                    InsertTimings(ep, settings);
+                }
 
-            var end = Math.Min(start + duration, ep.duration);
+                ep.needsScanning = false;
+                ep.DetectionPending = false;
+                db.Insert(ep);
+            }
+        }
+
+        void DoSingleQuery(Settings settings, bool isCredits, Episode ep, MediaType avtype, Segments audioSegments, Segments videoSegments)
+        {
+            var times = GetTimings(ep, settings, isCredits);
 
 
             string creditSnippet = isCredits ? "credits" : "intro";
@@ -823,7 +891,7 @@ namespace plexCreditsDetect
 
             if (!File.Exists(tempFile))
             {
-                if (!ffmpeghelper.CutVideo(start, end, ep.fullPath, tempFile, settings.useVideo, settings.useAudio))
+                if (!ffmpeghelper.CutVideo(times.start, times.end, ep.fullPath, tempFile, settings.useVideo, settings.useAudio || settings.detectSilenceAfterCredits, settings.sampleRate))
                 {
                     return;
                 }
@@ -876,9 +944,10 @@ namespace plexCreditsDetect
 
                     foreach (var entry in sortedAudio)
                     {
-                        Episode.Segment seg = new Episode.Segment(entry.QueryMatchStartsAt + start, entry.QueryMatchStartsAt + start + entry.TrackCoverageWithPermittedGapsLength);
+                        Segment seg = new Segment(entry.QueryMatchStartsAt + times.start, entry.QueryMatchStartsAt + times.start + entry.TrackCoverageWithPermittedGapsLength);
 
                         seg.isCredits = isCredits;
+                        seg.isSilence = false;
 
                         if (seg.duration >= settings.minimumMatchSeconds)
                         {
@@ -899,9 +968,10 @@ namespace plexCreditsDetect
 
                     foreach (var entry in sortedVideo)
                     {
-                        Episode.Segment seg = new Episode.Segment(entry.QueryMatchStartsAt + start, entry.QueryMatchStartsAt + start + entry.TrackCoverageWithPermittedGapsLength);
+                        Segment seg = new Segment(entry.QueryMatchStartsAt + times.start, entry.QueryMatchStartsAt + times.start + entry.TrackCoverageWithPermittedGapsLength);
 
                         seg.isCredits = isCredits;
+                        seg.isSilence = false;
 
                         if (seg.duration >= settings.minimumMatchSeconds)
                         {
@@ -917,6 +987,53 @@ namespace plexCreditsDetect
             }
         }
 
+        public int DetectSilence(Episode ep, Settings settings)
+        {
+            if (!settings.detectSilenceAfterCredits)
+            {
+                return 0;
+            }
+
+            ep.segments.allSegments.RemoveAll(x => x.isSilence);
+
+            Segment credits = ep.segments.allSegments.FirstOrDefault(x => x.isCredits);
+
+            if (credits != null)
+            {
+                credits = new Segment(credits.end, ep.duration);
+            }
+
+            Segment times = GetTimings(ep, settings, true, credits);
+
+            string creditSnippet = (credits == null ? "credits" : "silence");
+            string tempFile = Program.PathCombine(settings.TempDirectoryPath, $"{creditSnippet}.{Path.GetFileNameWithoutExtension(ep.name)}.mkv");
+
+            if (!File.Exists(tempFile))
+            {
+                if (!ffmpeghelper.CutVideo(times.start, times.end, ep.fullPath, tempFile, false, true, settings.sampleRate))
+                {
+                    return 0;
+                }
+            }
+            
+            Segments segments = ffmpeghelper.DetectSilence(tempFile, settings.minimumMatchSeconds, settings.silenceDecibels);
+            foreach (var seg in segments.allSegments)
+            {
+                seg.start += times.start;
+                seg.end += times.start;
+
+                ep.segments.AddSegment(seg);
+            }
+
+            if (segments.allSegments.Any())
+            {
+                OutputSegments($"Silence found", segments, settings);
+            }
+
+            return segments.allSegments.Count();
+        }
+
+
         public void CleanTemp()
         {
             var files = Directory.EnumerateFiles(Program.settings.TempDirectoryPath);
@@ -926,28 +1043,7 @@ namespace plexCreditsDetect
             }
         }
 
-        public bool ConstrainSegment(Episode.Segment seg, bool isCredits, Episode.Segment introPermitted, Episode.Segment creditsPermitted)
-        {
-            var introOverlap = seg.Overlap(introPermitted);
-            var creditsOverlap = seg.Overlap(creditsPermitted);
-
-            if (introOverlap != null && !isCredits)
-            {
-                seg.start = introOverlap.start;
-                seg.end = introOverlap.end;
-                return true;
-            }
-            if (creditsOverlap != null && isCredits)
-            {
-                seg.start = creditsOverlap.start;
-                seg.end = creditsOverlap.end;
-                return true;
-            }
-
-            return false;
-        }
-
-        public void OutputSegments(string pre, Episode.Segments segs, Settings settings)
+        public void OutputSegments(string pre, Segments segs, Settings settings)
         {
             foreach (var resultEntry in segs.allSegments)
             {
@@ -986,7 +1082,7 @@ namespace plexCreditsDetect
                 {
                     Settings settings = new Settings(path);
 
-                    if (settings.maximumMatches > 0 && settings.recheckUndetectedOnStartup)
+                    if ((settings.recheckSilenceOnStartup && settings.detectSilenceAfterCredits) || (settings.maximumMatches > 0 && settings.recheckUndetectedOnStartup))
                     {
                         foreach (var file in files)
                         {
@@ -996,11 +1092,20 @@ namespace plexCreditsDetect
                             }
                             Episode ep = new Episode(file);
 
-                            if (CheckIfFileNeedsScanning(ep, settings, true))
+                            CheckIfFileNeedsScanning(ep, settings, true);
+
+                            if (settings.recheckUndetectedOnStartup && ep.needsScanning)
+                            {
+                                ep.DetectionPending = true;
+                            }
+                            if (settings.recheckSilenceOnStartup && ep.needsSilenceScanning)
+                            {
+                                ep.SilenceDetectionPending = true;
+                            }
+
+                            if ((settings.recheckUndetectedOnStartup && ep.needsScanning) || (settings.recheckSilenceOnStartup && ep.needsSilenceScanning))
                             {
                                 Console.WriteLine("Episode needs scanning: " + ep.id);
-
-                                ep.DetectionPending = true;
                                 db.Insert(ep);
                             }
                         }
@@ -1096,10 +1201,16 @@ namespace plexCreditsDetect
                         continue;
                     }
 
+                    if (CheckSingleEpisode(item.episode) == null)
+                    {
+                        continue;
+                    }
+
                     if (settings == null || settings.currentlyLoadedSettingsPath != item.episode.fullDirPath)
                     {
                         settings = new Settings(item.episode.fullDirPath);
                     }
+
 
                     if (CheckIfFileNeedsScanning(item.episode, settings, true))
                     {
@@ -1124,9 +1235,16 @@ namespace plexCreditsDetect
                         {
                             plexDB.DeleteExistingIntros(item.metadata_item_id);
 
+                            Segments segs = new Segments();
+
                             for (int i = 0; i < items.Count; i++)
                             {
-                                plexDB.Insert(item.metadata_item_id, items[i], i + 1);
+                                segs.AddSegment(items[i], settings.PermittedGap, true);
+                            }
+
+                            for (int i = 0; i < segs.allSegments.Count; i++)
+                            {
+                                plexDB.Insert(item.metadata_item_id, segs.allSegments[i], i + 1);
                             }
                         }
                     }

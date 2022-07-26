@@ -206,7 +206,7 @@ namespace plexCreditsDetect.Database
             return dirs;
         }
 
-        public void InsertTiming(Episode ep, Episode.Segment segment, bool isPlexIntro)
+        public void InsertTiming(Episode ep, Segment segment, bool isPlexIntro)
         {
             throw new NotImplementedException();
         }

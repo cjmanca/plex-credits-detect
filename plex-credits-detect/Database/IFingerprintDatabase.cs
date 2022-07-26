@@ -22,7 +22,7 @@ namespace plexCreditsDetect.Database
         public List<Episode> GetPendingEpisodes();
         public Episode GetOnePendingEpisode();
         public List<string> GetPendingDirectories();
-        public void InsertTiming(Episode ep, Episode.Segment segment, bool isPlexIntro);
+        public void InsertTiming(Episode ep, Segment segment, bool isPlexIntro);
         public void DeleteEpisodeTimings(Episode ep);
     }
 }

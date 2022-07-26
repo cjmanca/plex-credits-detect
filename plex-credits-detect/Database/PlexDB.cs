@@ -96,8 +96,10 @@ namespace plexCreditsDetect.Database
             }
         }
 
-        public SQLiteDataReader ExecuteDBQuery(string cmd, Dictionary<string, object> p = null)
+        public SQLResultInfo ExecuteDBQuery(string cmd, Dictionary<string, object> p = null)
         {
+            SQLResultInfo ret = new SQLResultInfo();
+
             var sqlite_cmd = sqlite_conn.CreateCommand();
             sqlite_cmd.CommandText = cmd;
             sqlite_cmd.CommandType = System.Data.CommandType.Text;
@@ -114,7 +116,15 @@ namespace plexCreditsDetect.Database
             {
                 try
                 {
-                    return sqlite_cmd.ExecuteReader();
+                    //var reader = sqlite_cmd.ExecuteReader(System.Data.CommandBehavior.KeyInfo);
+                    ret.reader = sqlite_cmd.ExecuteReader();
+
+                    for (var i = 0; i < ret.reader.FieldCount; i++)
+                    {
+                        ret.columns[ret.reader.GetName(i)] = i;
+                    }
+
+                    return ret;
                 }
                 catch (SQLiteException e)
                 {
@@ -148,14 +158,14 @@ namespace plexCreditsDetect.Database
             {
                 var result = ExecuteDBQuery("SELECT id FROM tags WHERE tag_type = 12 LIMIT 1;");
 
-                if (result == null || !result.HasRows || !result.Read())
+                if (!result.Read())
                 {
                     Console.WriteLine("Couldn't get tag_id from Plex Database. Make sure you've set up intro scanning and Plex has scanned at least one show before turning off Plex's default scanning.");
                     Program.Exit();
                     return -1;
                 }
 
-                TagID = result.GetInt64(0);
+                TagID = result.Get<long>("id");
 
                 if (TagID < 0)
                 {
@@ -181,12 +191,12 @@ namespace plexCreditsDetect.Database
                     { "fileLin", $"%{Program.GetLinuxStylePath(ep.id)}" },
                 });
 
-            if (result == null || !result.HasRows || !result.Read())
+            if (!result.Read())
             {
                 return -1;
             }
 
-            return result.GetInt64(0);
+            return result.Get<long>("metadata_item_id");
         }
 
         public Episode GetEpisodeForMetaID(long metadata_item_id)
@@ -201,12 +211,12 @@ namespace plexCreditsDetect.Database
                     { "metadata_item_id", metadata_item_id }
                 });
 
-            if (result == null || !result.HasRows || !result.Read())
+            if (!result.Read())
             {
                 return null;
             }
 
-            Episode ep = new Episode(result.GetString(0));
+            Episode ep = new Episode(result.Get<string>("file"));
             ep.meta_id = metadata_item_id;
             ep.InPlexDB = true;
 
@@ -233,7 +243,7 @@ namespace plexCreditsDetect.Database
         }
 
 
-        public void Insert(long metadata_item_id, Episode.Segment segment, int index)
+        public void Insert(long metadata_item_id, Segment segment, int index)
         {
             long tagid = GetTagID();
 
@@ -273,16 +283,16 @@ namespace plexCreditsDetect.Database
                 { "tag_id", tagid }
             });
 
-            if (result == null || !result.HasRows || !result.Read())
+            if (!result.Read())
             {
                 return 0;
             }
 
-            return result.GetInt32(0);
+            return result.Get<int>("counted");
         }
 
 
-        public Episode.Segment GetPlexIntroTimings(long metadata_item_id)
+        public Segment GetPlexIntroTimings(long metadata_item_id)
         {
             long tagid = GetTagID();
 
@@ -298,16 +308,17 @@ namespace plexCreditsDetect.Database
                 { "index", 0 }
             });
 
-            if (result == null || !result.HasRows || !result.Read())
+            if (!result.Read())
             {
                 return null;
             }
 
-            Episode.Segment segment = new Episode.Segment();
+            Segment segment = new Segment();
             segment.isCredits = false;
+            segment.isSilence = false;
 
-            segment.start = result.GetDouble(0) / 1000.0;
-            segment.end = result.GetDouble(1) / 1000.0;
+            segment.start = result.Get<double>("time_offset") / 1000.0;
+            segment.end = result.Get<double>("end_time_offset") / 1000.0;
 
             return segment;
         }
@@ -316,7 +327,7 @@ namespace plexCreditsDetect.Database
         {
             public long metadata_item_id;
             public Episode episode;
-            public Episode.Segment segment = new Episode.Segment();
+            public Segment segment = new Segment();
             public DateTime created;
         }
 
@@ -330,18 +341,18 @@ namespace plexCreditsDetect.Database
             }
 
             var result = ExecuteDBQuery("SELECT taggings.metadata_item_id as metadata_item_id, media_parts.`file` as `file`, taggings.`time_offset` as `time_offset`, taggings.`end_time_offset` as `end_time_offset`, taggings.`created_at` as `created_at` " +
-                "FROM taggings " +
-                "INNER JOIN media_items ON taggings.metadata_item_id = media_items.metadata_item_id " +
-                "INNER JOIN media_parts ON media_items.id = media_parts.media_item_id " +
-                "WHERE taggings.`created_at` > @created_at AND taggings.`tag_id` = @tag_id AND taggings.`index` = @index " +
-                "ORDER BY created_at ASC LIMIT 100;", new Dictionary<string, object>()
+                " FROM taggings " +
+                " INNER JOIN media_items ON taggings.metadata_item_id = media_items.metadata_item_id " +
+                " INNER JOIN media_parts ON media_items.id = media_parts.media_item_id " +
+                " WHERE taggings.`created_at` > @created_at AND taggings.`tag_id` = @tag_id AND taggings.`index` = @index " +
+                " ORDER BY created_at ASC LIMIT 100;", new Dictionary<string, object>()
             {
                 { "created_at", since },
                 { "tag_id", tagid },
                 { "index", 0 }
             });
 
-            if (result == null || !result.HasRows)
+            if (!result.HasRows)
             {
                 return null;
             }
@@ -352,18 +363,19 @@ namespace plexCreditsDetect.Database
             {
                 RecentIntroData data = new RecentIntroData();
 
-                data.metadata_item_id = result.GetInt64(0);
+                data.metadata_item_id = result.Get<long>("metadata_item_id");
 
-                data.episode = new Episode(result.GetString(1));
+                data.episode = new Episode(result.Get<string>("file"));
 
                 data.episode.meta_id = data.metadata_item_id;
                 data.episode.InPlexDB = true;
 
-                data.segment.start = result.GetDouble(2) / 1000.0;
-                data.segment.end = result.GetDouble(3) / 1000.0;
+                data.segment.start = result.Get<double>("time_offset") / 1000.0;
+                data.segment.end = result.Get<double>("end_time_offset") / 1000.0;
                 data.segment.isCredits = false;
+                data.segment.isSilence = false;
 
-                data.created = result.GetDateTime(4);
+                data.created = result.Get<DateTime>("created_at");
 
                 ret.Add(data);
             }
@@ -391,7 +403,7 @@ namespace plexCreditsDetect.Database
                 { "index", 0 }
             });
 
-            if (result == null || !result.HasRows)
+            if (!result.HasRows)
             {
                 return null;
             }
@@ -402,13 +414,14 @@ namespace plexCreditsDetect.Database
             {
                 RecentIntroData data = new RecentIntroData();
 
-                data.metadata_item_id = result.GetInt64(0);
+                data.metadata_item_id = result.Get<long>("metadata_item_id");
 
-                data.segment.start = result.GetDouble(1) / 1000.0;
-                data.segment.end = result.GetDouble(2) / 1000.0;
+                data.segment.start = result.Get<double>("time_offset") / 1000.0;
+                data.segment.end = result.Get<double>("end_time_offset") / 1000.0;
                 data.segment.isCredits = false;
+                data.segment.isSilence = false;
 
-                data.created = result.GetDateTime(3);
+                data.created = result.Get<DateTime>("created_at");
 
                 data.episode = GetEpisodeForMetaID(data.metadata_item_id);
 
@@ -507,14 +520,14 @@ namespace plexCreditsDetect.Database
                 { "id", metadata_item_id }
             });
 
-            if (result == null || !result.HasRows || !result.Read())
+            if (!result.Read())
             {
                 return false;
             }
 
-            int type = result.GetInt32(1);
-            string title = result.GetString(2);
-            int index = result.GetInt32(3);
+            int type = result.Get<int>("metadata_type");
+            string title = result.Get<string>("title");
+            int index = result.Get<int>("index");
 
             switch (type)
             {
@@ -523,13 +536,13 @@ namespace plexCreditsDetect.Database
                     ret.showName = title;
                     break;
                 case 3: // season
-                    ret.showID = result.GetInt32(0);
+                    ret.showID = result.Get<int>("parent_id");
                     ret.seasonID = metadata_item_id;
                     ret.seasonName = title;
                     ret.seasonNumber = index;
                     break;
                 case 4: //episode
-                    ret.seasonID = result.GetInt32(0);
+                    ret.seasonID = result.Get<int>("parent_id");
                     break;
                 default:
                     return false;
