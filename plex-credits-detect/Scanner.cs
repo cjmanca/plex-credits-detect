@@ -20,6 +20,43 @@ namespace plexCreditsDetect
 
         int processed = 0;
 
+        bool CheckSingleEpisode(Episode ep)
+        {
+            if (!ep.Exists)
+            {
+                return false;
+            }
+
+            if (!IsVideoExtension(ep.fullPath))
+            {
+                return false;
+            }
+
+            if (ep.meta_id < 0)
+            {
+                //Console.WriteLine($"{ep.id}: Metadata not found in plex db. Removing.");
+                if (ep.InPrivateDB)
+                {
+                    db.DeleteEpisodeTimings(ep);
+                    db.DeleteEpisode(ep);
+                }
+                ep.DetectionPending = false;
+                ep.needsScanning = false;
+                return false;
+            }
+
+            if (!ep.InPrivateDB)
+            {
+                // metadata was found in plex db, so update our db with the episode
+                //Console.WriteLine($"{ep.id}: Adding to local db.");
+                ep.DetectionPending = true;
+                db.Insert(ep);
+            }
+
+            ep.passed = true;
+            return true;
+        }
+
         internal bool CheckIfFileNeedsScanning(Episode ep, Settings settings, bool insertCheck = false)
         {
             bool trueValForNeedsScanning = settings.maximumMatches > 0 && (settings.useVideo || settings.useAudio);
@@ -59,7 +96,7 @@ namespace plexCreditsDetect
                 return insertCheck;
             }
 
-            if (ep.FileSizeOnDisk != ep.FileSizeInDB)
+            if (settings.redetectIfFileSizeChanges && ep.FileSizeOnDisk != ep.FileSizeInDB)
             {
                 ep.needsScanning = trueValForNeedsScanning;
                 ep.needsSilenceScanning = trueValForNeedsSilenceScanning;
@@ -304,43 +341,6 @@ namespace plexCreditsDetect
 
 
 
-        Episode CheckSingleEpisode(Episode ep)
-        {
-            if (!ep.Exists)
-            {
-                return null;
-            }
-
-            if (!IsVideoExtension(ep.fullPath))
-            {
-                return null;
-            }
-
-            if (ep.meta_id < 0)
-            {
-                //Console.WriteLine($"{ep.id}: Metadata not found in plex db. Removing.");
-                if (ep.InPrivateDB)
-                {
-                    db.DeleteEpisodeTimings(ep);
-                    db.DeleteEpisode(ep);
-                }
-                ep.DetectionPending = false;
-                ep.needsScanning = false;
-                return null;
-            }
-
-            if (!ep.InPrivateDB)
-            {
-                // metadata was found in plex db, so update our db with the episode
-                //Console.WriteLine($"{ep.id}: Adding to local db.");
-                ep.DetectionPending = true;
-                db.Insert(ep);
-            }
-
-            ep.passed = true;
-            return ep;
-        }
-
 
         void DoFullFingerprint(List<Episode> allEpisodes, Settings settings)
         {
@@ -381,7 +381,7 @@ namespace plexCreditsDetect
                     return 0;
                 }
 
-                if (ep.FileSizeInDB != ep.FileSizeOnDisk)
+                if ((settings.redetectIfFileSizeChanges && ep.FileSizeInDB != ep.FileSizeOnDisk) || settings.forceRedetect)
                 {
                     // episode changed, clear and start from scratch
                     ep.segments.allSegments.Clear();
@@ -556,6 +556,7 @@ namespace plexCreditsDetect
                 List<Episode> bestCredits = new List<Episode>();
                 List<Segment> bestCreditSegments = new List<Segment>();
                 List<Episode> randomEpisodes = new List<Episode>();
+                List<Episode> randomEpisodesFull = new List<Episode>();
 
                 int totalEpisodesWithAllIntrosDetected = 0;
                 int totalEpisodesWithAllCreditsDetected = 0;
@@ -600,13 +601,12 @@ namespace plexCreditsDetect
 
                 foreach (var item in allEpisodes)
                 {
-                    ep = CheckSingleEpisode(item);
-                    if (ep == null)
+                    if (!CheckSingleEpisode(item))
                     {
                         continue;
                     }
 
-                    CheckIfFileNeedsScanning(ep, settings);
+                    CheckIfFileNeedsScanning(item, settings);
                 }
 
                 allEpisodes.RemoveAll(x => !x.passed);
@@ -623,8 +623,6 @@ namespace plexCreditsDetect
                     db.ClearDetectionPendingForDirectory(relDir);
                     return;
                 }
-
-                int numberToQuickTry = 5;
 
                 if (totalNeedsScanning > totalToFingerprint / 4)
                 {
@@ -648,94 +646,97 @@ namespace plexCreditsDetect
                 }
 
 
-                if (tryQuickDetect)
+                int epCount = 0;
+
+                foreach (var item in allEpisodes)
                 {
-                    int epCount = 0;
-
-                    foreach (var item in allEpisodes)
+                    if (randomEpisodes.Count() < (double)epCount / ((double)totalToFingerprint / (double)settings.quickDetectFingerprintSamples))
                     {
-                        if (randomEpisodes.Count() < (double)epCount / ((double)totalToFingerprint / (double)numberToQuickTry))
-                        {
-                            randomEpisodes.Add(item);
-                        }
-
-                        int introCount = item.segments.allSegments.Count(x => !x.isCredits && !x.isSilence);
-                        int creditCount = item.segments.allSegments.Count(x => x.isCredits && !x.isSilence);
-
-                        if (introCount == settings.introMatchCount)
-                        {
-                            totalEpisodesWithAllIntrosDetected++;
-                            int count = 0;
-                            foreach (var seg in item.segments.allSegments)
-                            {
-                                if (!seg.isCredits && !seg.isSilence)
-                                {
-                                    if (count < settings.introMatchCount && seg.duration > bestIntroSegments[count].duration)
-                                    {
-                                        bestIntroSegments[count] = seg;
-                                        bestIntros[count] = item;
-                                    }
-                                    count++;
-                                }
-                            }
-                        }
-                        if (creditCount == settings.creditsMatchCount)
-                        {
-                            totalEpisodesWithAllCreditsDetected++;
-                            int count = 0;
-                            foreach (var seg in item.segments.allSegments)
-                            {
-                                if (seg.isCredits && !seg.isSilence)
-                                {
-                                    if (count < settings.creditsMatchCount && seg.duration > bestCreditSegments[count].duration)
-                                    {
-                                        bestCreditSegments[count] = seg;
-                                        bestCredits[count] = item;
-                                    }
-                                    count++;
-                                }
-                            }
-                        }
-
-                        epCount++;
+                        randomEpisodes.Add(item);
+                    }
+                    else if (randomEpisodes.Count() + randomEpisodesFull.Count() < (double)epCount / ((double)totalToFingerprint / (double)(settings.fullDetectFingerprintMaxSamples + settings.quickDetectFingerprintSamples)))
+                    {
+                        randomEpisodesFull.Add(item);
                     }
 
 
-                    if (settings.introMatchCount > 0)
+                    int introCount = item.segments.allSegments.Count(x => !x.isCredits && !x.isSilence);
+                    int creditCount = item.segments.allSegments.Count(x => x.isCredits && !x.isSilence);
+
+                    if (introCount == settings.introMatchCount)
                     {
-                        if (totalEpisodesWithAllIntrosDetected < 8)
+                        totalEpisodesWithAllIntrosDetected++;
+                        int count = 0;
+                        foreach (var seg in item.segments.allSegments)
                         {
-                            tryQuickDetect = false;
-                        }
-                        else
-                        {
-                            foreach (var item in bestIntros)
+                            if (!seg.isCredits && !seg.isSilence)
                             {
-                                if (item == null)
+                                if (count < settings.introMatchCount && seg.duration > bestIntroSegments[count].duration)
                                 {
-                                    tryQuickDetect = false;
+                                    bestIntroSegments[count] = seg;
+                                    bestIntros[count] = item;
                                 }
+                                count++;
                             }
                         }
                     }
-                    if (settings.creditsMatchCount > 0)
+                    if (creditCount == settings.creditsMatchCount)
                     {
-                        if (totalEpisodesWithAllCreditsDetected < 8)
+                        totalEpisodesWithAllCreditsDetected++;
+                        int count = 0;
+                        foreach (var seg in item.segments.allSegments)
                         {
-                            tryQuickDetect = false;
-                        }
-                        else
-                        {
-                            foreach (var item in bestCredits)
+                            if (seg.isCredits && !seg.isSilence)
                             {
-                                if (item == null)
+                                if (count < settings.creditsMatchCount && seg.duration > bestCreditSegments[count].duration)
                                 {
-                                    tryQuickDetect = false;
+                                    bestCreditSegments[count] = seg;
+                                    bestCredits[count] = item;
                                 }
+                                count++;
+                            }
+                        }
+                    }
+
+                    epCount++;
+                }
+
+
+                if (settings.introMatchCount > 0)
+                {
+                    if (totalEpisodesWithAllIntrosDetected < 8)
+                    {
+                        tryQuickDetect = false;
+                    }
+                    else
+                    {
+                        foreach (var item in bestIntros)
+                        {
+                            if (item == null)
+                            {
+                                tryQuickDetect = false;
                             }
                         }
                     }
                 }
+                if (settings.creditsMatchCount > 0)
+                {
+                    if (totalEpisodesWithAllCreditsDetected < 8)
+                    {
+                        tryQuickDetect = false;
+                    }
+                    else
+                    {
+                        foreach (var item in bestCredits)
+                        {
+                            if (item == null)
+                            {
+                                tryQuickDetect = false;
+                            }
+                        }
+                    }
+                }
+                
 
 
                 if (tryQuickDetect)
@@ -778,6 +779,7 @@ namespace plexCreditsDetect
                             if (ep.needsScanning)
                             {
                                 remainingToFind++;
+                                break;
                             }
                         }
                     }
@@ -788,7 +790,7 @@ namespace plexCreditsDetect
                 {
                     //db.SetupNewScan();
 
-                    DoFullFingerprint(allEpisodes, settings);
+                    DoFullFingerprint(randomEpisodesFull, settings);
 
                     foreach (var item in allEpisodes)
                     {
@@ -1205,7 +1207,7 @@ namespace plexCreditsDetect
                         continue;
                     }
 
-                    if (CheckSingleEpisode(item.episode) == null)
+                    if (!CheckSingleEpisode(item.episode))
                     {
                         continue;
                     }

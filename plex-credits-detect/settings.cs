@@ -30,6 +30,10 @@ namespace plexCreditsDetect
 
         public int maximumMatches => introMatchCount + creditsMatchCount;
 
+        public int quickDetectFingerprintSamples = 5;
+        public int fullDetectFingerprintMaxSamples = 10;
+
+
         public double introStart = 0;
         public double introEnd = 0.5;
         public double introMaxSearchPeriod = 15 * 60;
@@ -59,6 +63,8 @@ namespace plexCreditsDetect
         public bool recheckUndetectedOnStartup = false;
         public bool forceRedetect = false;
 
+        public bool redetectIfFileSizeChanges = true;
+
         public Func<string, string> pathOverride = null;
 
         bool anyMissingGlobalIniSettings = false;
@@ -79,6 +85,9 @@ namespace plexCreditsDetect
 
             ret.introMatchCount = introMatchCount;
             ret.creditsMatchCount = creditsMatchCount;
+
+            ret.quickDetectFingerprintSamples = quickDetectFingerprintSamples;
+            ret.fullDetectFingerprintMaxSamples = fullDetectFingerprintMaxSamples;
 
             ret.introStart = introStart;
             ret.introEnd = introEnd;
@@ -108,6 +117,8 @@ namespace plexCreditsDetect
             ret.recheckSilenceOnStartup = recheckSilenceOnStartup;
             ret.recheckUndetectedOnStartup = recheckUndetectedOnStartup;
             ret.forceRedetect = forceRedetect;
+
+            ret.redetectIfFileSizeChanges = redetectIfFileSizeChanges;
 
             return ret;
         }
@@ -151,6 +162,9 @@ namespace plexCreditsDetect
             TryGet(data, warnOnMissing, "default", "introMatchCount", ref introMatchCount);
             TryGet(data, warnOnMissing, "default", "creditsMatchCount", ref creditsMatchCount);
 
+            TryGet(data, warnOnMissing, "default", "quickDetectFingerprintSamples", ref quickDetectFingerprintSamples);
+            TryGet(data, warnOnMissing, "default", "fullDetectFingerprintMaxSamples", ref fullDetectFingerprintMaxSamples);
+
             TryGet(data, warnOnMissing, "default", "introStart", ref introStart);
             TryGet(data, warnOnMissing, "default", "introEnd", ref introEnd);
             TryGet(data, warnOnMissing, "default", "introMaxSearchPeriod", ref introMaxSearchPeriod);
@@ -179,6 +193,8 @@ namespace plexCreditsDetect
             TryGet(data, warnOnMissing, "default", "recheckSilenceOnStartup", ref recheckSilenceOnStartup);
             TryGet(data, warnOnMissing, "default", "recheckUndetectedOnStartup", ref recheckUndetectedOnStartup);
             TryGet(data, warnOnMissing, "default", "forceRedetect", ref forceRedetect);
+
+            TryGet(data, warnOnMissing, "default", "redetectIfFileSizeChanges", ref redetectIfFileSizeChanges);
 
             if (data.Sections.ContainsSection("directories"))
             {
