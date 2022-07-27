@@ -330,6 +330,7 @@ namespace plexCreditsDetect
 
             Directory.CreateDirectory(databasePath);
             Directory.CreateDirectory(TempDirectoryPath);
+            Directory.CreateDirectory(Program.PathCombine(TempDirectoryPath, "plex-credits-detect-temp"));
 
             if (ffmpegPath == "")
             {

@@ -252,11 +252,11 @@ namespace plexCreditsDetect
 
                     if (partNum >= 0)
                     {
-                        tempFile = Program.PathCombine(settings.TempDirectoryPath, $"{creditSnippet}.{partNum}.{Path.GetFileNameWithoutExtension(ep.name)}.mkv");
+                        tempFile = Program.PathCombine(Program.PathCombine(settings.TempDirectoryPath,"plex-credits-detect-temp"), $"{creditSnippet}.{partNum}.{Path.GetFileNameWithoutExtension(ep.name)}.mkv");
                     }
                     else
                     {
-                        tempFile = Program.PathCombine(settings.TempDirectoryPath, $"{creditSnippet}.{Path.GetFileNameWithoutExtension(ep.name)}.mkv");
+                        tempFile = Program.PathCombine(Program.PathCombine(settings.TempDirectoryPath, "plex-credits-detect-temp"), $"{creditSnippet}.{Path.GetFileNameWithoutExtension(ep.name)}.mkv");
                     }
 
                     if (!File.Exists(tempFile))
@@ -400,7 +400,7 @@ namespace plexCreditsDetect
 
 
                 Console.WriteLine("");
-                Console.WriteLine($"Matching: {ep.id}");
+                Console.WriteLine($"Detecting: {ep.id}");
 
                 Segments audioSegments = new Segments();
                 Segments videoSegments = new Segments();
@@ -646,7 +646,7 @@ namespace plexCreditsDetect
                 }
 
 
-                int epCount = 0;
+                int epCount = 1;
 
                 foreach (var item in allEpisodes)
                 {
@@ -866,7 +866,7 @@ namespace plexCreditsDetect
                 if (!ep.needsScanning)
                 {
                     Console.WriteLine("");
-                    Console.WriteLine($"Matching: {ep.id}");
+                    Console.WriteLine($"Detecting: {ep.id}");
                 }
 
                 detected += DetectSilence(ep, settings);
@@ -893,7 +893,7 @@ namespace plexCreditsDetect
 
 
             string creditSnippet = isCredits ? "credits" : "intro";
-            string tempFile = Program.PathCombine(settings.TempDirectoryPath, $"{creditSnippet}.{Path.GetFileNameWithoutExtension(ep.name)}.mkv");
+            string tempFile = Program.PathCombine(Program.PathCombine(settings.TempDirectoryPath, "plex-credits-detect-temp"), $"{creditSnippet}.{Path.GetFileNameWithoutExtension(ep.name)}.mkv");
 
             if (!File.Exists(tempFile))
             {
@@ -1012,7 +1012,7 @@ namespace plexCreditsDetect
             Segment times = GetTimings(ep, settings, true, credits);
 
             string creditSnippet = (credits == null ? "credits" : "silence");
-            string tempFile = Program.PathCombine(settings.TempDirectoryPath, $"{creditSnippet}.{Path.GetFileNameWithoutExtension(ep.name)}.mkv");
+            string tempFile = Program.PathCombine(Program.PathCombine(settings.TempDirectoryPath, "plex-credits-detect-temp"), $"{creditSnippet}.{Path.GetFileNameWithoutExtension(ep.name)}.mkv");
 
             if (!File.Exists(tempFile))
             {
@@ -1042,7 +1042,7 @@ namespace plexCreditsDetect
 
         public void CleanTemp()
         {
-            var files = Directory.EnumerateFiles(Program.settings.TempDirectoryPath);
+            var files = Directory.EnumerateFiles(Program.PathCombine(Program.settings.TempDirectoryPath, "plex-credits-detect-temp"));
             foreach (var file in files)
             {
                 File.Delete(file);
