@@ -59,7 +59,7 @@ namespace plexCreditsDetect
                 return insertCheck;
             }
 
-            if (ep.FileSizeOnDisk != ep.FileSizeInDB)
+            if (settings.redetectIfFileSizeChanges && ep.FileSizeOnDisk != ep.FileSizeInDB)
             {
                 ep.needsScanning = trueValForNeedsScanning;
                 ep.needsSilenceScanning = trueValForNeedsSilenceScanning;
@@ -381,7 +381,7 @@ namespace plexCreditsDetect
                     return 0;
                 }
 
-                if (ep.FileSizeInDB != ep.FileSizeOnDisk)
+                if (settings.redetectIfFileSizeChanges && ep.FileSizeInDB != ep.FileSizeOnDisk)
                 {
                     // episode changed, clear and start from scratch
                     ep.segments.allSegments.Clear();

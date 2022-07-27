@@ -63,6 +63,8 @@ namespace plexCreditsDetect
         public bool recheckUndetectedOnStartup = false;
         public bool forceRedetect = false;
 
+        public bool redetectIfFileSizeChanges = true;
+
         public Func<string, string> pathOverride = null;
 
         bool anyMissingGlobalIniSettings = false;
@@ -115,6 +117,8 @@ namespace plexCreditsDetect
             ret.recheckSilenceOnStartup = recheckSilenceOnStartup;
             ret.recheckUndetectedOnStartup = recheckUndetectedOnStartup;
             ret.forceRedetect = forceRedetect;
+
+            ret.redetectIfFileSizeChanges = redetectIfFileSizeChanges;
 
             return ret;
         }
@@ -189,6 +193,8 @@ namespace plexCreditsDetect
             TryGet(data, warnOnMissing, "default", "recheckSilenceOnStartup", ref recheckSilenceOnStartup);
             TryGet(data, warnOnMissing, "default", "recheckUndetectedOnStartup", ref recheckUndetectedOnStartup);
             TryGet(data, warnOnMissing, "default", "forceRedetect", ref forceRedetect);
+
+            TryGet(data, warnOnMissing, "default", "redetectIfFileSizeChanges", ref redetectIfFileSizeChanges);
 
             if (data.Sections.ContainsSection("directories"))
             {
