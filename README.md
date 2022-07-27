@@ -75,6 +75,10 @@ detectSilenceAfterCredits = true     # check for long periods of silence after t
 introMatchCount = 0          # how many extra intro sequences to find, not including the plex detected one
 creditsMatchCount = 1        # how many credits sequences to find
 
+quickDetectFingerprintSamples = 5     # Try this many fingerprints if only matching a small number of episodes
+fullDetectFingerprintMaxSamples = 10  # When doing a "full" match, (or if quick match fails to find a match)
+                                      # restrict to a maximum of this many fingerprints
+
 introStart = 0               # percentage of show to start looking for intro at
 introEnd = 0.5               # percentage of show to stop looking for intro
 introMaxSearchPeriod = 900   # maximum seconds to look for intro (if smaller than introEnd - introStart)
@@ -121,6 +125,10 @@ forceRedetect = false # if this is true, then it will ignore whether the file si
                       # checking if a redetect is needed. Useful if you change ini settings and want to   
                       # force a regeneration of the credits. After changing this, you'll need to do a plex 
                       # dance to force plex to re-detect intros.
+
+redetectIfFileSizeChanges = true   # Whether to discard previous matches and check fresh if the file size is
+                                   # different than the last time the episode was scanned
+                                   # Turn off if using a tool like Tdarr to reencode without changing timings
 
 databasePath = C:\path\to\database\dir
 PlexDatabasePath = C:\path\to\com.plexapp.plugins.library.db
