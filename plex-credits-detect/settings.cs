@@ -30,6 +30,10 @@ namespace plexCreditsDetect
 
         public int maximumMatches => introMatchCount + creditsMatchCount;
 
+        public int quickDetectFingerprintSamples = 5;
+        public int fullDetectFingerprintMaxSamples = 10;
+
+
         public double introStart = 0;
         public double introEnd = 0.5;
         public double introMaxSearchPeriod = 15 * 60;
@@ -79,6 +83,9 @@ namespace plexCreditsDetect
 
             ret.introMatchCount = introMatchCount;
             ret.creditsMatchCount = creditsMatchCount;
+
+            ret.quickDetectFingerprintSamples = quickDetectFingerprintSamples;
+            ret.fullDetectFingerprintMaxSamples = fullDetectFingerprintMaxSamples;
 
             ret.introStart = introStart;
             ret.introEnd = introEnd;
@@ -150,6 +157,9 @@ namespace plexCreditsDetect
 
             TryGet(data, warnOnMissing, "default", "introMatchCount", ref introMatchCount);
             TryGet(data, warnOnMissing, "default", "creditsMatchCount", ref creditsMatchCount);
+
+            TryGet(data, warnOnMissing, "default", "quickDetectFingerprintSamples", ref quickDetectFingerprintSamples);
+            TryGet(data, warnOnMissing, "default", "fullDetectFingerprintMaxSamples", ref fullDetectFingerprintMaxSamples);
 
             TryGet(data, warnOnMissing, "default", "introStart", ref introStart);
             TryGet(data, warnOnMissing, "default", "introEnd", ref introEnd);
