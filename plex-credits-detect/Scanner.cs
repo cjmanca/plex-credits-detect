@@ -20,6 +20,43 @@ namespace plexCreditsDetect
 
         int processed = 0;
 
+        bool CheckSingleEpisode(Episode ep)
+        {
+            if (!ep.Exists)
+            {
+                return false;
+            }
+
+            if (!IsVideoExtension(ep.fullPath))
+            {
+                return false;
+            }
+
+            if (ep.meta_id < 0)
+            {
+                //Console.WriteLine($"{ep.id}: Metadata not found in plex db. Removing.");
+                if (ep.InPrivateDB)
+                {
+                    db.DeleteEpisodeTimings(ep);
+                    db.DeleteEpisode(ep);
+                }
+                ep.DetectionPending = false;
+                ep.needsScanning = false;
+                return false;
+            }
+
+            if (!ep.InPrivateDB)
+            {
+                // metadata was found in plex db, so update our db with the episode
+                //Console.WriteLine($"{ep.id}: Adding to local db.");
+                ep.DetectionPending = true;
+                db.Insert(ep);
+            }
+
+            ep.passed = true;
+            return true;
+        }
+
         internal bool CheckIfFileNeedsScanning(Episode ep, Settings settings, bool insertCheck = false)
         {
             bool trueValForNeedsScanning = settings.maximumMatches > 0 && (settings.useVideo || settings.useAudio);
@@ -304,43 +341,6 @@ namespace plexCreditsDetect
 
 
 
-        Episode CheckSingleEpisode(Episode ep)
-        {
-            if (!ep.Exists)
-            {
-                return null;
-            }
-
-            if (!IsVideoExtension(ep.fullPath))
-            {
-                return null;
-            }
-
-            if (ep.meta_id < 0)
-            {
-                //Console.WriteLine($"{ep.id}: Metadata not found in plex db. Removing.");
-                if (ep.InPrivateDB)
-                {
-                    db.DeleteEpisodeTimings(ep);
-                    db.DeleteEpisode(ep);
-                }
-                ep.DetectionPending = false;
-                ep.needsScanning = false;
-                return null;
-            }
-
-            if (!ep.InPrivateDB)
-            {
-                // metadata was found in plex db, so update our db with the episode
-                //Console.WriteLine($"{ep.id}: Adding to local db.");
-                ep.DetectionPending = true;
-                db.Insert(ep);
-            }
-
-            ep.passed = true;
-            return ep;
-        }
-
 
         void DoFullFingerprint(List<Episode> allEpisodes, Settings settings)
         {
@@ -381,7 +381,7 @@ namespace plexCreditsDetect
                     return 0;
                 }
 
-                if (settings.redetectIfFileSizeChanges && ep.FileSizeInDB != ep.FileSizeOnDisk)
+                if ((settings.redetectIfFileSizeChanges && ep.FileSizeInDB != ep.FileSizeOnDisk) || settings.forceRedetect)
                 {
                     // episode changed, clear and start from scratch
                     ep.segments.allSegments.Clear();
@@ -601,13 +601,12 @@ namespace plexCreditsDetect
 
                 foreach (var item in allEpisodes)
                 {
-                    ep = CheckSingleEpisode(item);
-                    if (ep == null)
+                    if (!CheckSingleEpisode(item))
                     {
                         continue;
                     }
 
-                    CheckIfFileNeedsScanning(ep, settings);
+                    CheckIfFileNeedsScanning(item, settings);
                 }
 
                 allEpisodes.RemoveAll(x => !x.passed);
@@ -1208,7 +1207,7 @@ namespace plexCreditsDetect
                         continue;
                     }
 
-                    if (CheckSingleEpisode(item.episode) == null)
+                    if (!CheckSingleEpisode(item.episode))
                     {
                         continue;
                     }
