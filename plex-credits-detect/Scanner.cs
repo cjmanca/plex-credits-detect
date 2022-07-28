@@ -502,7 +502,10 @@ namespace plexCreditsDetect
                 for (int i = 0; i < segments.allSegments.Count; i++)
                 {
                     segments.allSegments[i].start -= settings.shiftSegmentBySeconds;
-                    segments.allSegments[i].end -= settings.shiftSegmentBySeconds;
+                    if (Math.Abs(ep.duration - segments.allSegments[i].end) > 2)
+                    {
+                        segments.allSegments[i].end -= settings.shiftSegmentBySeconds;
+                    }
 
                     plexDB.Insert(ep.meta_id, segments.allSegments[i], i + 1);
                 }
