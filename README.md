@@ -57,46 +57,45 @@ The ini would be read in this order:
 Each ini that is encountered will override any provided options from all previous files. All except the global fingerprint.ini are optional.
 
 ```dosini
+[paths]
+databasePath = C:\path\to\database\dir
+PlexDatabasePath = C:\path\to\com.plexapp.plugins.library.db
+ffmpegPath = C:\path\to\ffmpeg\bin\ffmpeg.exe
+TempDirectoryPath = C:\path\to\empty\temp\dir
+
+
 [directories]
 C:\path\to\library = C:\path\to\library
 C:\path\credits\scanner\sees = C:\path\plex\server\sees
 
+# If not using docker containers, this can be left blank
+# These let you remap paths if using docker with different path mappings than plex sees
 # Place as many of these entries as you'd like for your plex libraries. 
 # The first path is the local (internal container) path. The second path is the path the Plex server sees.
-# This lets you map paths if the directory structure is different while using docker containers
-# If not using docker containers, just put the same path on both sides of the =
-# These paths must be the same as configured in plex in order to properly locate the files
+# The plex side of these paths must be the same as configured in plex in order to properly locate the files
 
-[default]
-useAudio = true                      # use audio fingerprinting
-useVideo = false                     # use video frame fingerprinting (slow)
-detectSilenceAfterCredits = true     # check for long periods of silence after the credits
 
-introMatchCount = 0          # how many extra intro sequences to find, not including the plex detected one
-creditsMatchCount = 1        # how many credits sequences to find
-
-quickDetectFingerprintSamples = 5     # Try this many fingerprints if only matching a small number of episodes
-fullDetectFingerprintMaxSamples = 10  # When doing a "full" match, (or if quick match fails to find a match)
-                                      # restrict to a maximum of this many fingerprints
-
+[intro]
 introStart = 0               # percentage of show to start looking for intro at
 introEnd = 0.5               # percentage of show to stop looking for intro
 introMaxSearchPeriod = 900   # maximum seconds to look for intro (if smaller than introEnd - introStart)
 
+
+[credits]
 creditsStart = 0.7           # percentage of show to start looking for credits at
 creditsEnd = 1.0             # percentage of show to stop looking for credits
 creditsMaxSearchPeriod = 600 # maximum seconds to look for credits (if smaller than creditsStart-creditsEnd)
 
-shiftSegmentBySeconds = 2    # plex detected intros start about 2 seconds before the intro. If you'd like to  
-                             # reproduce that, you would put a 2 here
 
-minimumMatchSeconds = 20 # the minimum length of a duplicate section to be considered a valid match segment
-PermittedGap = 2                     # maximum non-matching seconds to be allowed inside a match
-PermittedGapWithMinimumEnclosure = 5 # when considering combining multiple segments into one larger 
-                                     # segment, this is the maximum amount of seconds between them. 
-                                     # Each segment must be at least minimumMatchSeconds to be 
-                                     # considered for combining.
-
+[matching]
+useAudio = true                      # use audio fingerprinting
+useVideo = false                     # use video frame fingerprinting (slow)
+introMatchCount = 0          # how many extra intro sequences to find, not including the plex detected one
+creditsMatchCount = 1        # how many credits sequences to find
+quickDetectFingerprintSamples = 5     # Try this many fingerprints if only matching a small number of episodes
+fullDetectFingerprintMaxSamples = 10  # When doing a "full" match, (or if quick match fails to find a match)
+                                      # restrict to a maximum of this many fingerprints
+                                      
 # see the soundfingerprint wiki page for more info on these: 
 # https://github.com/AddictedCS/soundfingerprinting/wiki/Algorithm-Configuration
 
@@ -105,35 +104,64 @@ stride = 512          # If scanning is too slow, can set this to 1024 or 2048 to
 sampleRate = 5512
 minFrequency = 100
 maxFrequency = 2750
-
-silenceDecibels = -55 # If the volume is below this for longer than minimumMatchSeconds it'll detect as silence
-
 videoAccuracy = 2     # called "ThresholdVotes" on the wiki
 videoSizeDivisor = 50 # 1080x1080 / videoSizeDivisor = video size used for comparisons
 frameRate = 1         # biggest factor for video fingerprint speed and memory requirements
 
-recheckSilenceOnStartup = false    # When true, scans your libraries for episodes that haven't yet
-                                   # been checked for sections of silence after the credits
-                                   # Keep set to false during normal operation.
-                                   # This will also pick up episodes that don't have plex detected intros.
-recheckUndetectedOnStartup = false # When true, scans your libraries for episodes that are missing timings
-                                   # This can be useful if you change ini settings and want to rescan
-                                   # all your libraries to try to find missing credits
-                                   # Keep set to false during normal operation.
-                                   # This will also pick up episodes that don't have plex detected intros.
+
+[silence]
+detectSilenceAfterCredits = true     # check for long periods of silence after the credits
+silenceDecibels = -55 # If the volume is below this for longer than minimumMatchSeconds it'll detect as silence
+
+
+[blackframes]
+detectBlackframes = true                       # Scans video frames for a majority black background (typical credits)
+blackframeOnlyMovies = true                    # If true, will only scan shows in movie libraries
+blackframeUseMaxSearchPeriodForEpisodes = true # Whether to restrict via "creditsMaxSearchPeriod" for episodes
+blackframeUseMaxSearchPeriodForMovies = false  # Whether to restrict via "creditsMaxSearchPeriod" for movies
+blackframeScreenPercentage = 75                # The percentage of the screen that must be black to count as a black frame
+blackframePixelPercentage = 2                  # Percentage between 0 (absolute black) and 100 (white) that
+                                               # is considered to be a "black" pixel
+
+
+[timing]
+shiftSegmentBySeconds = 2    # plex detected intros start about 2 seconds before the intro. If you'd like to  
+                             # reproduce that, you would put a 2 here
+minimumMatchSeconds = 20     # the minimum length of a duplicate section to be considered a valid match segment
+PermittedGap = 2                      # maximum non-matching seconds to be allowed inside a match
+PermittedGapWithMinimumEnclosure = 5  # when considering combining multiple segments into one larger 
+                                      # segment, this is the maximum amount of seconds between them. 
+                                      # Each segment must be at least minimumMatchSeconds to be 
+                                      # considered for combining.
+
+
+
+
+[redetection]
+crawlDirectoriesOnStartup = false   # When true, scans your libraries for ini files that may override
+                                    # the other recheck settings here on a per-directory basis.
+                                    # This only works in conjunction with other ini files
+                                    # placed in your media directories to "target scan"
+recheckBlackframesOnStartup = false # When true, scans your libraries for shows that haven't yet
+                                    # been checked for black frames.
+                                    # Keep set to false during normal operation.
+recheckSilenceOnStartup = false     # When true, scans your libraries for shows that haven't yet
+                                    # been checked for sections of silence after the credits
+                                    # Keep set to false during normal operation.
+                                    # This will also pick up episodes that don't have plex detected intros.
+recheckUndetectedOnStartup = false  # When true, scans your libraries for episodes that are missing timings
+                                    # This can be useful if you change ini settings and want to rescan
+                                    # all your libraries to try to find missing credits
+                                    # Keep set to false during normal operation.
+                                    # This will also pick up episodes that don't have plex detected intros.
 forceRedetect = false # if this is true, then it will ignore whether the file size matches the database when  
                       # checking if a redetect is needed. Useful if you change ini settings and want to   
                       # force a regeneration of the credits. After changing this, you'll need to do a plex 
                       # dance to force plex to re-detect intros.
-
 redetectIfFileSizeChanges = true   # Whether to discard previous matches and check fresh if the file size is
                                    # different than the last time the episode was scanned
                                    # Turn off if using a tool like Tdarr to reencode without changing timings
 
-databasePath = C:\path\to\database\dir
-PlexDatabasePath = C:\path\to\com.plexapp.plugins.library.db
-ffmpegPath = C:\path\to\ffmpeg\bin\ffmpeg.exe
-TempDirectoryPath = C:\path\to\empty\temp\dir
 ```
 
 
