@@ -38,9 +38,67 @@ namespace plexCreditsDetect
             return ret / (double)ffmpeg.AV_TIME_BASE;
         }
 
+        public class WidthHeight
+        {
+            public int width = 0;
+            public int height = 0;
+        }
+
+        public static WidthHeight GetWidthHeight(string path)
+        {
+            var pFormatContext = ffmpeg.avformat_alloc_context();
+
+            ffmpeg.avformat_open_input(&pFormatContext, path, null, null);
+
+            if (pFormatContext == null)
+            {
+                return null;
+            }
+
+            // Retrieve stream information
+            int output = ffmpeg.avformat_find_stream_info(pFormatContext, null);
+            if (output < 0)
+            {
+                return null;
+            }
+
+            int videoStream = -1;
+            for (int i = 0; i < pFormatContext->nb_streams; i++)
+            {
+                if (pFormatContext->streams[i]->codecpar->codec_type == AVMediaType.AVMEDIA_TYPE_VIDEO)
+                {
+                    videoStream = i;
+                    break;
+                }
+            }
+
+            if (videoStream < 0)
+            {
+                return null;
+            }
+
+            AVCodecParameters* pCodecCtx = pFormatContext->streams[videoStream]->codecpar;
+
+            if (pCodecCtx == null)
+            {
+                return null;
+            }
+
+            WidthHeight ret = new WidthHeight();
+
+            ret.width = pCodecCtx->width;
+            ret.height = pCodecCtx->height;
+
+            ffmpeg.avformat_close_input(&pFormatContext);
+            ffmpeg.avformat_free_context(pFormatContext);
+
+            return ret;
+        }
+
         private static string Execute(string exePath, string parameters, out string errors)
         {
             string result = String.Empty;
+            string resultError = String.Empty;
             errors = String.Empty;
 
             using (Process p = new Process())
@@ -51,14 +109,32 @@ namespace plexCreditsDetect
                 p.StartInfo.RedirectStandardError = true;
                 p.StartInfo.FileName = exePath;
                 p.StartInfo.Arguments = parameters;
-                p.Start();
-                p.WaitForExit();
+                p.OutputDataReceived += (sender, args) =>
+                {
+                    result += args.Data + "\n";
+                };
+                p.ErrorDataReceived += (sender, args) =>
+                {
+                    resultError += args.Data + "\n";
+                };
 
-                result = p.StandardOutput.ReadToEnd();
-                errors = p.StandardError.ReadToEnd();
+                p.Start();
+                p.BeginOutputReadLine();
+                p.BeginErrorReadLine();
+
+                while (!p.HasExited)
+                {
+                    Thread.Sleep(10);
+                }
+
+
+                //p.WaitForExit();
+
+                //result = p.StandardOutput.ReadToEnd();
+                errors = resultError.Trim();
             }
 
-            return result;
+            return result.Trim();
         }
 
         public static Segments DetectSilence(string in_filename, double minimumSeconds, int silenceDecibels)
@@ -67,7 +143,7 @@ namespace plexCreditsDetect
 
             string args = $"-i \"{in_filename}\" -v fatal -threads 0 -filter:a:0 silencedetect={silenceDecibels}dB:d={minimumSeconds},ametadata=mode=print:file=-:key=lavfi.silence_start,ametadata=mode=print:file=-:key=lavfi.silence_end -vn -sn -dn -f null -";
 
-            string output = Execute(Program.settings.ffmpegPath, args, out errors);
+            string output = Execute(Settings.ffmpegPath, args, out errors);
 
             Segments segments = new Segments();
 
@@ -145,6 +221,82 @@ namespace plexCreditsDetect
             return segments;
         }
 
+        public static Segments DetectBlackframes(double from_seconds, double end_seconds, string in_filename, double minimumSeconds, double screenThreshold, double pixelThreshold)
+        {
+            string errors = "";
+            string cropstring = "";
+
+            var wh = GetWidthHeight(in_filename);
+
+            if (wh != null)
+            {
+                int ystart = (int)(wh.height * 0.2);
+                int height = wh.height - (ystart * 2);
+                int xstart = 10;
+                int width = wh.width - (xstart * 2);
+
+                cropstring = $",crop=x={xstart}:y={ystart}:w={width}:h={height}";
+            }
+            // -nostats 
+
+            string args = $"-y -nostats -hide_banner -threads 0 -ss {from_seconds} -i \"{in_filename}\" -to {end_seconds} -map 0:v:0 -r 1 -filter:v fps=1{cropstring},blackdetect=d={minimumSeconds}:pic_th={screenThreshold}:pix_th={pixelThreshold} -an -sn -dn -f null -";
+
+            string output = Execute(Settings.ffmpegPath, args, out errors);
+
+            Segments segments = new Segments();
+
+            string[] lines = errors.Split(
+                new string[] { "\r\n", "\r", "\n" },
+                StringSplitOptions.RemoveEmptyEntries
+            );
+
+
+            foreach (string line in lines)
+            {
+                if (line.StartsWith("[blackdetect @"))
+                {
+                    Segment seg = new Segment();
+                    seg.isBlackframes = true;
+
+                    seg.start = GetDoubleAfterIndex(line, "black_start:");
+                    seg.end = GetDoubleAfterIndex(line, "black_end:");
+
+                    if (seg.start >= 0 && seg.end >= 0 && seg.end > seg.start && seg.duration >= minimumSeconds)
+                    {
+                        segments.AddSegment(seg);
+                    }
+                }
+            }
+
+            return segments;
+        }
+
+
+
+        static double GetDoubleAfterIndex(string line, string index)
+        {
+
+            int bsi = line.IndexOf(index) + index.Length;
+            if (bsi == -1)
+            {
+                return -1;
+            }
+            string tmp = line.Substring(bsi);
+            int end = tmp.IndexOf(' ');
+            if (end == -1)
+            {
+                return -1;
+            }
+            tmp = tmp.Substring(0, end);
+            double dtmp = 0;
+            if (double.TryParse(tmp.Trim(), out dtmp))
+            {
+                return dtmp;
+            }
+
+            return -1;
+        }
+
         public static bool CutVideo(double from_seconds, double end_seconds, string in_filename, string out_filename, bool includeVideo, bool includeAudio, int sampleRate)
         {
             /**/
@@ -164,7 +316,7 @@ namespace plexCreditsDetect
 
             /**/
             string errors;
-            string output = Execute(Program.settings.ffmpegPath, args, out errors);
+            string output = Execute(Settings.ffmpegPath, args, out errors);
 
             if (output != "" || errors != "")
             {

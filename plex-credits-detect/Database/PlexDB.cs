@@ -15,6 +15,35 @@ namespace plexCreditsDetect.Database
         long parentActivityID = -1;
         long currentActivityID = -1;
 
+        public class RootDirectory
+        {
+            public string path = "";
+            public long library_section_id = -1;
+            public long section_type = -1;
+        }
+
+
+        Dictionary<long, RootDirectory> _RootDirectories = null;
+        public Dictionary<long, RootDirectory> RootDirectories
+        {
+            get
+            {
+                if (_RootDirectories == null)
+                {
+                    _RootDirectories = GetRootDirectories();
+                    if (_RootDirectories == null)
+                    {
+                        _RootDirectories = new Dictionary<long, RootDirectory>();
+                    }
+                    else
+                    {
+                        GetMovieRoots();
+                    }
+                }
+                return _RootDirectories;
+            }
+        }
+
 
         public PlexDB()
         {
@@ -316,6 +345,7 @@ namespace plexCreditsDetect.Database
             Segment segment = new Segment();
             segment.isCredits = false;
             segment.isSilence = false;
+            segment.isBlackframes = false;
 
             segment.start = result.Get<double>("time_offset") / 1000.0;
             segment.end = result.Get<double>("end_time_offset") / 1000.0;
@@ -365,15 +395,18 @@ namespace plexCreditsDetect.Database
 
                 data.metadata_item_id = result.Get<long>("metadata_item_id");
 
+                data.segment.start = result.Get<double>("time_offset") / 1000.0;
+                data.segment.end = result.Get<double>("end_time_offset") / 1000.0;
+                data.segment.isCredits = false;
+                data.segment.isSilence = false;
+                data.segment.isBlackframes = false;
+
                 data.episode = new Episode(result.Get<string>("file"));
 
                 data.episode.meta_id = data.metadata_item_id;
                 data.episode.InPlexDB = true;
 
-                data.segment.start = result.Get<double>("time_offset") / 1000.0;
-                data.segment.end = result.Get<double>("end_time_offset") / 1000.0;
-                data.segment.isCredits = false;
-                data.segment.isSilence = false;
+                data.episode.plexTimings = data.segment;
 
                 data.created = result.Get<DateTime>("created_at");
 
@@ -420,6 +453,7 @@ namespace plexCreditsDetect.Database
                 data.segment.end = result.Get<double>("end_time_offset") / 1000.0;
                 data.segment.isCredits = false;
                 data.segment.isSilence = false;
+                data.segment.isBlackframes = false;
 
                 data.created = result.Get<DateTime>("created_at");
 
@@ -550,6 +584,102 @@ namespace plexCreditsDetect.Database
 
             return true;
 
+        }
+
+        private Dictionary<long, RootDirectory> GetRootDirectories()
+        {
+            Dictionary<long, RootDirectory> ret = new Dictionary<long, RootDirectory>();
+
+            var result = ExecuteDBQuery("SELECT * FROM section_locations;");
+
+            if (!result.HasRows)
+            {
+                return ret;
+            }
+
+            while (result.Read())
+            {
+                var root = new RootDirectory();
+                root.path = result.Get<string>("root_path");
+                root.library_section_id = result.Get<long>("library_section_id");
+                ret[root.library_section_id] = root;
+            }
+
+            return ret;
+        }
+
+        private Dictionary<long, string> GetMovieRoots()
+        {
+            Dictionary<long, string> ret = new Dictionary<long, string>();
+
+            var result = ExecuteDBQuery("SELECT * FROM library_sections;");
+
+            if (!result.HasRows)
+            {
+                return ret;
+            }
+
+            while (result.Read())
+            {
+                long id = result.Get<long>("id");
+
+                if (RootDirectories.ContainsKey(id))
+                {
+                    RootDirectories[id].section_type = result.Get<int>("section_type");
+                }
+            }
+
+            return ret;
+        }
+
+        public Dictionary<string, DateTime> GetRecentlyModifiedDirectories(DateTime since)
+        {
+            Dictionary<string, DateTime> ret = new Dictionary<string, DateTime>();
+
+            var result = ExecuteDBQuery("SELECT * FROM directories " +
+                " WHERE `updated_at` > @updated_at ORDER BY updated_at ASC LIMIT 100;", new Dictionary<string, object>()
+            {
+                { "updated_at", since }
+            });
+
+            if (!result.HasRows)
+            {
+                return ret;
+            }
+
+            while (result.Read())
+            {
+                string dir = result.Get<string>("path");
+                long id = result.Get<long>("library_section_id");
+                bool valid = true;
+
+                if (dir == "")
+                {
+                    continue;
+                }
+
+                if (RootDirectories.ContainsKey(id))
+                {
+                    if (RootDirectories[id].section_type > 2)
+                    {
+                        valid = false;
+                    }
+                    else
+                    {
+                        dir = Program.PathCombine(Program.plexBasePathToLocalBasePath(RootDirectories[id].path), dir);
+                    }
+                }
+                else
+                {
+                    dir = Program.getFullDirectory(dir);
+                }
+
+                if (valid)
+                {
+                    ret.Add(dir, result.Get<DateTime>("updated_at"));
+                }
+            }
+            return ret;
         }
 
         public ShowSeasonInfo GetShowAndSeason(long metadata_item_id)

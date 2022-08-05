@@ -11,6 +11,7 @@ namespace plexCreditsDetect
 
         public bool isCredits = false;
         public bool isSilence = false;
+        public bool isBlackframes = false;
 
         public Episode episode = null;
 
@@ -38,13 +39,13 @@ namespace plexCreditsDetect
         {
             if (!ignoreSection)
             {
-                if (seg.isSilence != isSilence)
+                if (seg.isSilence != isSilence || seg.isBlackframes != isBlackframes)
                 {
                     return false;
                 }
                 else
                 {
-                    if (!isSilence && seg.isCredits != isCredits)
+                    if (!isSilence && !isBlackframes && seg.isCredits != isCredits)
                     {
                         return false;
                     }
@@ -65,13 +66,13 @@ namespace plexCreditsDetect
         {
             if (!ignoreSection)
             {
-                if (seg.isSilence != isSilence)
+                if (seg.isSilence != isSilence || seg.isBlackframes != isBlackframes)
                 {
                     return null;
                 }
                 else
                 {
-                    if (!isSilence && seg.isCredits != isCredits)
+                    if (!isSilence && !isBlackframes && seg.isCredits != isCredits)
                     {
                         return null;
                     }
@@ -84,6 +85,7 @@ namespace plexCreditsDetect
             Segment result = new Segment(Math.Max(seg.start, start), Math.Min(seg.end, end));
             result.isCredits = isCredits;
             result.isSilence = isSilence;
+            result.isBlackframes = isBlackframes;
 
             if (result.start >= result.end)
             {

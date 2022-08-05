@@ -1,4 +1,5 @@
-﻿using System;
+﻿using plexCreditsDetect.Database;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -13,6 +14,27 @@ namespace plexCreditsDetect
         public string id { get; set; }
         public string name { get; set; }
         public string dir { get; set; }
+
+        bool? _BlackframeDetectionPending = null;
+        public bool BlackframeDetectionPending
+        {
+            get
+            {
+                if (!_BlackframeDetectionPending.HasValue)
+                {
+                    Scanner.db.GetEpisode(this);
+                    if (!_BlackframeDetectionPending.HasValue)
+                    {
+                        _BlackframeDetectionPending = false;
+                    }
+                }
+                return _BlackframeDetectionPending.Value;
+            }
+            set
+            {
+                _BlackframeDetectionPending = value;
+            }
+        }
 
         bool? _SilenceDetectionPending = null;
         public bool SilenceDetectionPending
@@ -77,6 +99,27 @@ namespace plexCreditsDetect
             }
         }
 
+        bool? _BlackframeDetectionDone = null;
+        public bool BlackframeDetectionDone
+        {
+            get
+            {
+                if (!_BlackframeDetectionDone.HasValue)
+                {
+                    Scanner.db.GetEpisode(this);
+                    if (!_BlackframeDetectionDone.HasValue)
+                    {
+                        _BlackframeDetectionDone = false;
+                    }
+                }
+                return _BlackframeDetectionDone.Value;
+            }
+            set
+            {
+                _BlackframeDetectionDone = value;
+            }
+        }
+
         DateTime? _LastWriteTimeUtcInDB = null;
         public DateTime LastWriteTimeUtcInDB
         {
@@ -126,6 +169,27 @@ namespace plexCreditsDetect
         public bool passed = false;
         public bool needsScanning = false;
         public bool needsSilenceScanning = false;
+        public bool needsBlackframeScanning = false;
+        bool? _isMovie = null;
+        public bool isMovie
+        {
+            get
+            {
+                if (!_isMovie.HasValue)
+                {
+                    _isMovie = false;
+                    foreach (var item in Scanner.plexDB.RootDirectories)
+                    {
+                        if (fullDirPath.Contains(Program.plexBasePathToLocalBasePath(item.Value.path)) && item.Value.section_type == 1)
+                        {
+                            _isMovie = true;
+                        }
+                    }
+                }
+                return _isMovie.Value;
+            }
+        }
+
         public bool Exists { get; set; } = false;
         public string fullPath { get; set; }
         public string fullDirPath { get; set; }
@@ -243,7 +307,7 @@ namespace plexCreditsDetect
 
             FileInfo fi;
 
-            foreach (var bPath in Program.settings.paths)
+            foreach (var bPath in Settings.paths)
             {
                 string p = Program.PathCombine(bPath.Key, path);
                 fi = new FileInfo(p);
