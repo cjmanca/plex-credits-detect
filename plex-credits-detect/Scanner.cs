@@ -19,6 +19,7 @@ namespace plexCreditsDetect
         private static readonly string[] allowedExtensions = new string[] { ".3g2", ".3gp", ".amv", ".asf", ".avi", ".flv", ".f4v", ".f4p", ".f4a", ".f4b", ".m4v", ".mkv", ".mov", ".qt", ".mp4", ".m4p", ".mpg", ".mp2", ".mpeg", ".mpe", ".mpv", ".m2v", ".mts", ".m2ts", ".ts", ".ogv", ".ogg", ".rm", ".rmvb", ".viv", ".vob", ".webm", ".wmv" };
 
         int processed = 0;
+        int processAttempts = 0;
 
         bool wroteHeader = false;
 
@@ -421,6 +422,7 @@ namespace plexCreditsDetect
                 {
                     Console.WriteLine("");
                     Console.WriteLine($"Detecting: {ep.id}");
+                    processAttempts++;
                     wroteHeader = true;
                 }
 
@@ -571,6 +573,7 @@ namespace plexCreditsDetect
         {
             if (!Directory.Exists(path))
             {
+                db.ClearDetectionPendingForDirectory(path);
                 return;
             }
 
@@ -581,6 +584,7 @@ namespace plexCreditsDetect
 
             if (settings.maximumMatches <= 0)
             {
+                db.ClearDetectionPendingForDirectory(path);
                 return;
             }
 
@@ -592,6 +596,7 @@ namespace plexCreditsDetect
             try
             {
                 processed = 0;
+                processAttempts = 0;
 
                 db.SetupNewScan();
 
@@ -908,8 +913,11 @@ namespace plexCreditsDetect
 
                 db.ClearDetectionPendingForDirectory(relDir);
 
-                Console.WriteLine("");
-                Console.WriteLine($"Detection took {sw.Elapsed:g}");
+                if (processAttempts > 0)
+                {
+                    Console.WriteLine("");
+                    Console.WriteLine($"Detection took {sw.Elapsed:g}");
+                }
             }
 
         }
@@ -925,6 +933,7 @@ namespace plexCreditsDetect
                 {
                     Console.WriteLine("");
                     Console.WriteLine($"Detecting: {ep.id}");
+                    processAttempts++;
                     wroteHeader = true;
                 }
 
@@ -940,6 +949,7 @@ namespace plexCreditsDetect
                 {
                     Console.WriteLine("");
                     Console.WriteLine($"Detecting: {ep.id}");
+                    processAttempts++;
                     wroteHeader = true;
                 }
 
