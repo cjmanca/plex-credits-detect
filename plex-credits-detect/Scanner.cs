@@ -20,7 +20,9 @@ namespace plexCreditsDetect
 
         int processed = 0;
 
-        bool CheckSingleEpisode(Episode ep)
+        bool wroteHeader = false;
+
+        bool CheckSingleEpisode(Episode ep, bool allowInsert = true)
         {
             if (!ep.Exists)
             {
@@ -50,7 +52,11 @@ namespace plexCreditsDetect
                 // metadata was found in plex db, so update our db with the episode
                 //Console.WriteLine($"{ep.id}: Adding to local db.");
                 ep.DetectionPending = true;
-                db.Insert(ep);
+
+                if (allowInsert)
+                {
+                    db.Insert(ep);
+                }
             }
 
             ep.passed = true;
@@ -66,6 +72,7 @@ namespace plexCreditsDetect
             {
                 ep.needsScanning = false;
                 ep.needsSilenceScanning = false;
+                ep.needsBlackframeScanning = false;
                 return false;
             }
             
@@ -73,13 +80,17 @@ namespace plexCreditsDetect
             {
                 ep.needsScanning = false;
                 ep.needsSilenceScanning = false;
+                ep.needsBlackframeScanning = false;
                 return false;
             }
+
+            bool trueValForNeedsBlackframeScanning = settings.detectBlackframes && (!settings.blackframeOnlyMovies || ep.isMovie);
 
             if (settings.forceRedetect)
             {
                 ep.needsScanning = trueValForNeedsScanning;
                 ep.needsSilenceScanning = trueValForNeedsSilenceScanning;
+                ep.needsBlackframeScanning = trueValForNeedsBlackframeScanning;
                 return true;
             }
 
@@ -89,10 +100,12 @@ namespace plexCreditsDetect
                 {
                     ep.needsScanning = false;
                     ep.needsSilenceScanning = false;
+                    ep.needsBlackframeScanning = false;
                     return false;
                 }
                 ep.needsScanning = trueValForNeedsScanning;
                 ep.needsSilenceScanning = trueValForNeedsSilenceScanning;
+                ep.needsBlackframeScanning = trueValForNeedsBlackframeScanning;
                 return insertCheck;
             }
 
@@ -100,12 +113,17 @@ namespace plexCreditsDetect
             {
                 ep.needsScanning = trueValForNeedsScanning;
                 ep.needsSilenceScanning = trueValForNeedsSilenceScanning;
+                ep.needsBlackframeScanning = trueValForNeedsBlackframeScanning;
                 return true;
             }
 
-            if (settings.detectSilenceAfterCredits && !ep.SilenceDetectionDone)
+            if (trueValForNeedsSilenceScanning && !ep.SilenceDetectionDone)
             {
                 ep.needsSilenceScanning = trueValForNeedsSilenceScanning;
+            }
+            if (trueValForNeedsBlackframeScanning && !ep.BlackframeDetectionDone)
+            {
+                ep.needsBlackframeScanning = trueValForNeedsBlackframeScanning;
             }
 
             if (trueValForNeedsScanning)
@@ -117,8 +135,8 @@ namespace plexCreditsDetect
                     ep.needsScanning = true;
                     return true;
                 }
-                int intros = timings.Count(x => x.isCredits == false && x.isSilence == false);
-                int credits = timings.Count(x => x.isCredits == true && x.isSilence == false);
+                int intros = timings.Count(x => x.isCredits == false && !x.isSilence && !x.isBlackframes);
+                int credits = timings.Count(x => x.isCredits == true && !x.isSilence && !x.isBlackframes);
 
                 if (intros < settings.introMatchCount)
                 {
@@ -133,7 +151,7 @@ namespace plexCreditsDetect
             }
 
             ep.needsScanning = false;
-            return ep.needsSilenceScanning;
+            return ep.needsSilenceScanning || ep.needsBlackframeScanning;
         }
 
         FingerprintConfiguration GenerateFingerprintAudioConfig(Settings settings)
@@ -252,11 +270,11 @@ namespace plexCreditsDetect
 
                     if (partNum >= 0)
                     {
-                        tempFile = Program.PathCombine(Program.PathCombine(settings.TempDirectoryPath,"plex-credits-detect-temp"), $"{creditSnippet}.{partNum}.{Path.GetFileNameWithoutExtension(ep.name)}.mkv");
+                        tempFile = Program.PathCombine(Program.PathCombine(Settings.TempDirectoryPath,"plex-credits-detect-temp"), $"{creditSnippet}.{partNum}.{Path.GetFileNameWithoutExtension(ep.name)}.mkv");
                     }
                     else
                     {
-                        tempFile = Program.PathCombine(Program.PathCombine(settings.TempDirectoryPath, "plex-credits-detect-temp"), $"{creditSnippet}.{Path.GetFileNameWithoutExtension(ep.name)}.mkv");
+                        tempFile = Program.PathCombine(Program.PathCombine(Settings.TempDirectoryPath, "plex-credits-detect-temp"), $"{creditSnippet}.{Path.GetFileNameWithoutExtension(ep.name)}.mkv");
                     }
 
                     if (!File.Exists(tempFile))
@@ -399,8 +417,12 @@ namespace plexCreditsDetect
                 }
 
 
-                Console.WriteLine("");
-                Console.WriteLine($"Detecting: {ep.id}");
+                if (!wroteHeader)
+                {
+                    Console.WriteLine("");
+                    Console.WriteLine($"Detecting: {ep.id}");
+                    wroteHeader = true;
+                }
 
                 Segments audioSegments = new Segments();
                 Segments videoSegments = new Segments();
@@ -473,27 +495,41 @@ namespace plexCreditsDetect
         }
 
 
-        void InsertTimings(Episode ep, Settings settings)
+        void InsertTimings(Episode ep, Settings settings, bool verbose = true, bool doingReinsert = false)
         {
             try
             {
-                //OutputMatches(result?.Audio.ResultEntries, MediaType.Audio);
-                OutputSegments("Match", ep.segments, settings);
+                if (verbose)
+                {
+                    OutputSegments("Match", ep.segments, settings);
+                }
+
+                if (!doingReinsert)
+                {
+                    db.DeleteEpisodeTimings(ep);
+                }
+                else
+                {
+                    db.DeleteEpisodePlexTimings(ep);
+                }
 
                 if (ep.plexTimings != null)
                 {
                     db.InsertTiming(ep, ep.plexTimings, true);
                 }
 
-                db.DeleteEpisodeTimings(ep);
                 plexDB.DeleteExistingIntros(ep.meta_id);
 
                 Segments segments = new Segments();
 
                 for (int i = 0; i < ep.segments.allSegments.Count; i++)
                 {
-                    db.InsertTiming(ep, ep.segments.allSegments[i], false);
+                    if (!doingReinsert)
+                    {
+                        db.InsertTiming(ep, ep.segments.allSegments[i], false);
+                    }
 
+                    // add them all to a temporary segments list, ignoring sections to allow overlapping segments to combine
                     segments.AddSegment(ep.segments.allSegments[i], settings.PermittedGap, true);
                 }
 
@@ -502,9 +538,21 @@ namespace plexCreditsDetect
                 for (int i = 0; i < segments.allSegments.Count; i++)
                 {
                     segments.allSegments[i].start -= settings.shiftSegmentBySeconds;
-                    if (Math.Abs(ep.duration - segments.allSegments[i].end) > 2)
+                    if (segments.allSegments[i].start < 0)
+                    {
+                        segments.allSegments[i].start = 0;
+                    }
+                    if (segments.allSegments[i].end < ep.duration - 2)
                     {
                         segments.allSegments[i].end -= settings.shiftSegmentBySeconds;
+                    }
+                    else
+                    {
+                        segments.allSegments[i].end = ep.duration;
+                    }
+                    if (segments.allSegments[i].end < 0)
+                    {
+                        segments.allSegments[i].end = 0;
                     }
 
                     plexDB.Insert(ep.meta_id, segments.allSegments[i], i + 1);
@@ -618,9 +666,10 @@ namespace plexCreditsDetect
                 int totalToFingerprint = allEpisodes.Count();
 
                 int totalNeedsSilenceScanning = allEpisodes.Count(x => x.needsSilenceScanning);
+                int totalNeedsBlackframeScanning = allEpisodes.Count(x => x.needsBlackframeScanning);
 
 
-                if (totalNeedsSilenceScanning <= 0 && (totalNeedsScanning <= 0 || totalToFingerprint < 2))
+                if (totalNeedsSilenceScanning <= 0 && totalNeedsBlackframeScanning <= 0 && (totalNeedsScanning <= 0 || totalToFingerprint < 2))
                 {
                     CleanTemp();
                     db.ClearDetectionPendingForDirectory(relDir);
@@ -635,11 +684,11 @@ namespace plexCreditsDetect
                 allEpisodes.Sort((a, b) => a.name.CompareTo(b.name));
 
 
-                if (totalNeedsSilenceScanning > 0 && (totalNeedsScanning <= 0 || totalToFingerprint < 2))
+                if ((totalNeedsSilenceScanning > 0 || totalNeedsBlackframeScanning > 0) && (totalNeedsScanning <= 0 || totalToFingerprint < 2))
                 {
                     foreach (var item in allEpisodes)
                     {
-                        if (item.needsSilenceScanning)
+                        if (item.needsSilenceScanning || item.needsBlackframeScanning)
                         {
                             HandleInsert(item, settings, 0);
                         }
@@ -663,8 +712,8 @@ namespace plexCreditsDetect
                     }
 
 
-                    int introCount = item.segments.allSegments.Count(x => !x.isCredits && !x.isSilence);
-                    int creditCount = item.segments.allSegments.Count(x => x.isCredits && !x.isSilence);
+                    int introCount = item.segments.allSegments.Count(x => !x.isCredits && !x.isSilence && !x.isBlackframes);
+                    int creditCount = item.segments.allSegments.Count(x => x.isCredits && !x.isSilence && !x.isBlackframes);
 
                     if (introCount == settings.introMatchCount)
                     {
@@ -672,7 +721,7 @@ namespace plexCreditsDetect
                         int count = 0;
                         foreach (var seg in item.segments.allSegments)
                         {
-                            if (!seg.isCredits && !seg.isSilence)
+                            if (!seg.isCredits && !seg.isSilence && !seg.isBlackframes)
                             {
                                 if (count < settings.introMatchCount && seg.duration > bestIntroSegments[count].duration)
                                 {
@@ -689,7 +738,7 @@ namespace plexCreditsDetect
                         int count = 0;
                         foreach (var seg in item.segments.allSegments)
                         {
-                            if (seg.isCredits && !seg.isSilence)
+                            if (seg.isCredits && !seg.isSilence && !seg.isBlackframes)
                             {
                                 if (count < settings.creditsMatchCount && seg.duration > bestCreditSegments[count].duration)
                                 {
@@ -703,6 +752,9 @@ namespace plexCreditsDetect
 
                     epCount++;
                 }
+
+                randomEpisodesFull.AddRange(randomEpisodes);
+                randomEpisodesFull.Sort((a, b) => a.name.CompareTo(b.name));
 
 
                 if (settings.introMatchCount > 0)
@@ -770,6 +822,7 @@ namespace plexCreditsDetect
 
                     foreach (var item in allEpisodes)
                     {
+                        wroteHeader = false;
                         ep = item;
                         int detected = DetectSingleEpisode(ep, settings);
 
@@ -797,6 +850,7 @@ namespace plexCreditsDetect
 
                     foreach (var item in allEpisodes)
                     {
+                        wroteHeader = false;
                         ep = item;
                         int detected = DetectSingleEpisode(ep, settings);
 
@@ -863,21 +917,39 @@ namespace plexCreditsDetect
         void HandleInsert(Episode ep, Settings settings, int detected)
         {
             bool silenceDetected = false;
+            bool blackframesDetected = false;
 
-            if (settings.detectSilenceAfterCredits && (ep.needsScanning || ep.needsSilenceScanning))
+            if (settings.detectSilenceAfterCredits && (ep.needsScanning || ep.needsSilenceScanning || ((settings.redetectIfFileSizeChanges && ep.FileSizeInDB != ep.FileSizeOnDisk) || settings.forceRedetect)))
             {
-                if (!ep.needsScanning)
+                if (!wroteHeader)
                 {
                     Console.WriteLine("");
                     Console.WriteLine($"Detecting: {ep.id}");
+                    wroteHeader = true;
                 }
 
                 detected += DetectSilence(ep, settings);
                 ep.needsSilenceScanning = false;
                 ep.SilenceDetectionDone = true;
+                ep.SilenceDetectionPending = false;
                 silenceDetected = true;
             }
-            if (ep.needsScanning || silenceDetected)
+            if (settings.detectBlackframes && (ep.needsBlackframeScanning || ((settings.redetectIfFileSizeChanges && ep.FileSizeInDB != ep.FileSizeOnDisk) || settings.forceRedetect)))
+            {
+                if (!wroteHeader)
+                {
+                    Console.WriteLine("");
+                    Console.WriteLine($"Detecting: {ep.id}");
+                    wroteHeader = true;
+                }
+
+                detected += DetectBlackframes(ep, settings);
+                ep.needsBlackframeScanning = false;
+                ep.BlackframeDetectionDone = true;
+                ep.BlackframeDetectionPending = false;
+                blackframesDetected = true;
+            }
+            if (ep.needsScanning || silenceDetected || blackframesDetected)
             {
                 if (detected > 0)
                 {
@@ -896,7 +968,7 @@ namespace plexCreditsDetect
 
 
             string creditSnippet = isCredits ? "credits" : "intro";
-            string tempFile = Program.PathCombine(Program.PathCombine(settings.TempDirectoryPath, "plex-credits-detect-temp"), $"{creditSnippet}.{Path.GetFileNameWithoutExtension(ep.name)}.mkv");
+            string tempFile = Program.PathCombine(Program.PathCombine(Settings.TempDirectoryPath, "plex-credits-detect-temp"), $"{creditSnippet}.{Path.GetFileNameWithoutExtension(ep.name)}.mkv");
 
             if (!File.Exists(tempFile))
             {
@@ -957,6 +1029,7 @@ namespace plexCreditsDetect
 
                         seg.isCredits = isCredits;
                         seg.isSilence = false;
+                        seg.isBlackframes = false;
 
                         if (seg.duration >= settings.minimumMatchSeconds)
                         {
@@ -981,6 +1054,7 @@ namespace plexCreditsDetect
 
                         seg.isCredits = isCredits;
                         seg.isSilence = false;
+                        seg.isBlackframes = false;
 
                         if (seg.duration >= settings.minimumMatchSeconds)
                         {
@@ -1003,9 +1077,9 @@ namespace plexCreditsDetect
                 return 0;
             }
 
-            ep.segments.allSegments.RemoveAll(x => x.isSilence);
+            ep.segments.allSegments.RemoveAll(x => x.isSilence && !x.isBlackframes);
 
-            Segment credits = ep.segments.allSegments.FirstOrDefault(x => x.isCredits);
+            Segment credits = ep.segments.allSegments.FirstOrDefault(x => x.isCredits && !x.isBlackframes && !x.isSilence);
 
             if (credits != null)
             {
@@ -1015,7 +1089,7 @@ namespace plexCreditsDetect
             Segment times = GetTimings(ep, settings, true, credits);
 
             string creditSnippet = (credits == null ? "credits" : "silence");
-            string tempFile = Program.PathCombine(Program.PathCombine(settings.TempDirectoryPath, "plex-credits-detect-temp"), $"{creditSnippet}.{Path.GetFileNameWithoutExtension(ep.name)}.mkv");
+            string tempFile = Program.PathCombine(Program.PathCombine(Settings.TempDirectoryPath, "plex-credits-detect-temp"), $"{creditSnippet}.{Path.GetFileNameWithoutExtension(ep.name)}.mkv");
 
             if (!File.Exists(tempFile))
             {
@@ -1042,10 +1116,51 @@ namespace plexCreditsDetect
             return segments.allSegments.Count();
         }
 
+        public int DetectBlackframes(Episode ep, Settings settings)
+        {
+            if (!settings.detectBlackframes || (settings.blackframeOnlyMovies && !ep.isMovie))
+            {
+                return 0;
+            }
+
+            ep.segments.allSegments.RemoveAll(x => !x.isSilence && x.isBlackframes);
+
+            Segment times = null;
+            
+            if ((!ep.isMovie && settings.blackframeUseMaxSearchPeriodForEpisodes) || (ep.isMovie && settings.blackframeUseMaxSearchPeriodForMovies))
+            {
+                times = GetTimings(ep, settings, true);
+            }
+            else
+            {
+                times = new Segment();
+
+                times.start = ep.duration * settings.creditsStart;
+                times.end = ep.duration * settings.creditsEnd;
+            }
+
+            Segments segments = ffmpeghelper.DetectBlackframes(times.start, times.end, ep.fullPath, settings.minimumMatchSeconds, Math.Min(1, Math.Max(0, settings.blackframeScreenPercentage / 100.0)), Math.Min(1, Math.Max(0, settings.blackframePixelPercentage / 100.0)));
+            
+            foreach (var seg in segments.allSegments)
+            {
+                seg.start += times.start;
+                seg.end += times.start;
+
+                ep.segments.AddSegment(seg);
+            }
+
+            if (segments.allSegments.Any())
+            {
+                OutputSegments($"Black frames found", segments, settings);
+            }
+
+            return segments.allSegments.Count();
+        }
+
 
         public void CleanTemp()
         {
-            var files = Directory.EnumerateFiles(Program.PathCombine(Program.settings.TempDirectoryPath, "plex-credits-detect-temp"));
+            var files = Directory.EnumerateFiles(Program.PathCombine(Settings.TempDirectoryPath, "plex-credits-detect-temp"));
             foreach (var file in files)
             {
                 File.Delete(file);
@@ -1091,7 +1206,7 @@ namespace plexCreditsDetect
                 {
                     Settings settings = new Settings(path);
 
-                    if ((settings.recheckSilenceOnStartup && settings.detectSilenceAfterCredits) || (settings.maximumMatches > 0 && settings.recheckUndetectedOnStartup))
+                    if ((settings.recheckBlackframesOnStartup && settings.detectBlackframes) || (settings.recheckSilenceOnStartup && settings.detectSilenceAfterCredits) || (settings.maximumMatches > 0 && settings.recheckUndetectedOnStartup))
                     {
                         foreach (var file in files)
                         {
@@ -1111,8 +1226,12 @@ namespace plexCreditsDetect
                             {
                                 ep.SilenceDetectionPending = true;
                             }
+                            if (settings.recheckBlackframesOnStartup && ep.needsBlackframeScanning)
+                            {
+                                ep.BlackframeDetectionPending = true;
+                            }
 
-                            if ((settings.recheckUndetectedOnStartup && ep.needsScanning) || (settings.recheckSilenceOnStartup && ep.needsSilenceScanning))
+                            if ((settings.recheckUndetectedOnStartup && ep.needsScanning) || (settings.recheckSilenceOnStartup && ep.needsSilenceScanning) || (settings.recheckBlackframesOnStartup && ep.needsBlackframeScanning))
                             {
                                 Console.WriteLine("Episode needs scanning: " + ep.id);
                                 db.Insert(ep);
@@ -1173,6 +1292,77 @@ namespace plexCreditsDetect
         }
 
 
+        public void CheckForPlexChangedDirectories()
+        {
+            Dictionary<string, DateTime> data = new Dictionary<string, DateTime>();
+
+            do
+            {
+                data = plexDB.GetRecentlyModifiedDirectories(db.lastPlexDirectoryChanged);
+
+                Console.WriteLine($"Found changed directories: {data.Count} \n");
+
+                foreach (var item in data)
+                {
+                    if (item.Key.Length <= 1) // ignore root directory
+                    {
+                        continue;
+                    }
+
+                    string path = Program.getFullDirectory(item.Key);
+                    DateTime time = item.Value;
+
+                    Episode ep = new Episode();
+                    ep.fullDirPath = Path.GetDirectoryName(Program.PathCombine(path, "dummy"));
+
+                    var di = new DirectoryInfo(ep.fullDirPath);
+                    if (di.Exists)
+                    {
+
+                        ep.dir = Program.getRelativeDirectory(Program.PathCombine(path, "dummy"));
+
+                        Settings settings = new Settings(ep.fullDirPath);
+
+                        bool doBlackframes = settings.detectBlackframes && (!settings.blackframeOnlyMovies || ep.isMovie);
+                        bool doMatching = (settings.useAudio || settings.useVideo) && settings.maximumMatches > 0;
+
+                        if (doMatching)
+                        {
+                            ep.DetectionPending = true;
+                        }
+                        if (settings.detectSilenceAfterCredits)
+                        {
+                            ep.SilenceDetectionPending = true;
+                        }
+                        if (doBlackframes)
+                        {
+                            ep.BlackframeDetectionPending = true;
+                        }
+
+                        if (doMatching || settings.detectSilenceAfterCredits || doBlackframes)
+                        {
+                            Console.WriteLine("Directory needs scanning: " + path);
+
+                            ep.fullPath = ep.fullDirPath;
+                            ep.id = ep.dir;
+
+                            ep.name = Path.GetFileName(path);
+
+                            ep.Exists = true;
+                            ep.LastWriteTimeUtcOnDisk = di.LastWriteTimeUtc;
+                            ep.FileSizeOnDisk = 0;
+
+                            db.Insert(ep);
+
+                            ignoreDirectories.RemoveAll(x => x == ep.dir);
+                        }
+                    }
+
+                    db.lastPlexDirectoryChanged = time;
+                }
+            } while (data.Any());
+        }
+
         public void CheckForNewPlexIntros()
         {
             List<PlexDB.RecentIntroData> data = new List<PlexDB.RecentIntroData>();
@@ -1210,7 +1400,7 @@ namespace plexCreditsDetect
                         continue;
                     }
 
-                    if (!CheckSingleEpisode(item.episode))
+                    if (!CheckSingleEpisode(item.episode, false))
                     {
                         continue;
                     }
@@ -1223,38 +1413,46 @@ namespace plexCreditsDetect
 
                     if (CheckIfFileNeedsScanning(item.episode, settings, true))
                     {
-                        Console.WriteLine("Episode needs scanning: " + item.episode.id);
 
-                        item.episode.DetectionPending = true;
+                        bool doMatching = (settings.useAudio || settings.useVideo) && settings.maximumMatches > 0 && settings.recheckUndetectedOnStartup && item.episode.needsScanning;
+                        bool doSilence = settings.recheckSilenceOnStartup && settings.detectSilenceAfterCredits && item.episode.needsSilenceScanning;
+                        bool doBlackframes = settings.detectBlackframes && (!settings.blackframeOnlyMovies || item.episode.isMovie) && settings.recheckBlackframesOnStartup && item.episode.needsBlackframeScanning;
 
-                        db.Insert(item.episode);
+                        if (doMatching)
+                        {
+                            item.episode.DetectionPending = true;
+                        }
+                        if (doSilence)
+                        {
+                            item.episode.SilenceDetectionPending = true;
+                        }
+                        if (doBlackframes)
+                        {
+                            item.episode.BlackframeDetectionPending = true;
+                        }
 
-                        db.DeleteEpisodePlexTimings(item.episode);
-                        db.InsertTiming(item.episode, item.segment, true);
+                        if (doMatching || doSilence || doBlackframes)
+                        {
+                            Console.WriteLine("Episode needs scanning: " + item.episode.id);
 
-                        ignoreDirectories.RemoveAll(x => x == item.episode.dir);
+                            db.Insert(item.episode);
+
+                            db.DeleteEpisodePlexTimings(item.episode);
+                            db.InsertTiming(item.episode, item.segment, true);
+
+                            ignoreDirectories.RemoveAll(x => x == item.episode.dir);
+                        }
+
                     }
                     else
                     {
                         //Console.WriteLine($"Updating timings for episode: {item.episode.fullPath}");
 
-                        var items = db.GetNonPlexTimings(item.episode);
+                        var items = db.GetNonPlexTimings(item.episode, true);
 
                         if (items != null)
                         {
-                            plexDB.DeleteExistingIntros(item.metadata_item_id);
-
-                            Segments segs = new Segments();
-
-                            for (int i = 0; i < items.Count; i++)
-                            {
-                                segs.AddSegment(items[i], settings.PermittedGap, true);
-                            }
-
-                            for (int i = 0; i < segs.allSegments.Count; i++)
-                            {
-                                plexDB.Insert(item.metadata_item_id, segs.allSegments[i], i + 1);
-                            }
+                            InsertTimings(item.episode, settings, false, true);
                         }
                     }
 

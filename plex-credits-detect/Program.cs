@@ -27,8 +27,22 @@ namespace plexCreditsDetect
             Scanner.audioService = new FFmpegAudioService();
 
             //Scanner.db = new LMDBFingerprintDatabase(settings.databasePath);
-            Scanner.db = new InMemoryFingerprintDatabase(settings.databasePath);
-            Scanner.plexDB.LoadDatabase(settings.PlexDatabasePath);
+            Scanner.db = new InMemoryFingerprintDatabase(Settings.databasePath);
+            Scanner.plexDB.LoadDatabase(Settings.PlexDatabasePath);
+
+
+            foreach (var dir in Scanner.plexDB.RootDirectories)
+            {
+                if (!Settings.pathsPlexIndexed.ContainsKey(dir.Value.path))
+                {
+                    if (dir.Value.section_type <= 2) // 1 is movies, 2 is tv shows. No reason to try to detect other library types
+                    {
+                        Settings.paths[dir.Value.path] = dir.Value.path;
+                        Settings.pathsPlexIndexed[dir.Value.path] = dir.Value.path;
+                    }
+                }
+            }
+
 
             Scanner scanner = new Scanner();
 
@@ -57,24 +71,23 @@ namespace plexCreditsDetect
             }
             */
 
-
-            if (settings.recheckUndetectedOnStartup || settings.recheckSilenceOnStartup)
+            if (settings.crawlDirectoriesOnStartup || settings.recheckUndetectedOnStartup || settings.recheckSilenceOnStartup || settings.recheckBlackframesOnStartup)
             {
                 Console.WriteLine("Crawling library paths to find episodes that don't meet the desired credit and intro numbers");
-                foreach (var path in settings.paths)
+                foreach (var path in Settings.paths)
                 {
                     scanner.CheckDirectory(path.Key);
                 }
             }
-
 
             Console.WriteLine($"\nSyncing newly added episodes from plex...\n");
 
             firstLoop = true;
             while (true)
             {
-
                 scanner.CheckForNewPlexIntros();
+
+                scanner.CheckForPlexChangedDirectories();
 
                 if (firstLoop)
                 {
@@ -82,6 +95,11 @@ namespace plexCreditsDetect
                 }
 
                 var dirs = Scanner.db.GetPendingDirectories();
+
+                if (firstLoop && (dirs == null || dirs.Count <= 0))
+                {
+                    Console.WriteLine($"\nNothing to do. Monitoring for changes.\n");
+                }
 
                 int count = 0;
 
@@ -92,7 +110,7 @@ namespace plexCreditsDetect
                     {
                         count++;
                         Console.WriteLine($"");
-                        Console.WriteLine($"Processing season {count} of {dirs.Count}");
+                        Console.WriteLine($"Processing season {count} of {dirs.Count}: {item}");
                         scanner.ScanDirectory(item);
                     }
                 }
@@ -179,7 +197,7 @@ namespace plexCreditsDetect
             string ret = path;
 
 
-            foreach (var p in settings.paths)
+            foreach (var p in Settings.paths)
             {
                 if (path.StartsWith(p.Key))
                 {
@@ -201,7 +219,12 @@ namespace plexCreditsDetect
         {
             string ret = Path.GetDirectoryName(path);
 
-            foreach (var p in settings.paths)
+            if (ret == null)
+            {
+                return path;
+            }
+
+            foreach (var p in Settings.paths)
             {
                 if (path.StartsWith(p.Key))
                 {
@@ -222,13 +245,42 @@ namespace plexCreditsDetect
 
         public static string getFullDirectory(string path)
         {
-            foreach (var bPath in Program.settings.paths)
+            foreach (var bPath in Settings.paths)
             {
                 string p = Program.PathCombine(bPath.Key, path);
 
                 if (Directory.Exists(p))
                 {
                     return p;
+                }
+            }
+
+            return path;
+        }
+
+        public static string plexBasePathToLocalBasePath(string path)
+        {
+            path = Path.GetFullPath(path);
+            if (Settings.pathsPlexIndexed.ContainsKey(path))
+            {
+                return Settings.pathsPlexIndexed[path];
+            }
+            return path;
+        }
+
+        public static string localBasePathToPlexBasePath(string path)
+        {
+            path = Path.GetFullPath(path);
+            if (Settings.paths.ContainsKey(path))
+            {
+                return Settings.paths[path];
+            }
+
+            foreach (var item in Settings.paths)
+            {
+                if (path.Contains(item.Key))
+                {
+                    return item.Value;
                 }
             }
 

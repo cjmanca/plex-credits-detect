@@ -15,15 +15,23 @@ namespace plexCreditsDetect
         public string currentlyLoadedSettingsPath = "";
         public string globalSettingsPath => Program.PathCombine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "plex-credits-detect");
 
-        public Dictionary<string, string> paths = new Dictionary<string, string>();
-        public string databasePath = "";
-        public string PlexDatabasePath = "";
-        public string TempDirectoryPath = "";
-        public string ffmpegPath = "";
+        public static Dictionary<string, string> paths = new Dictionary<string, string>();
+        public static Dictionary<string, string> pathsPlexIndexed = new Dictionary<string, string>();
+        public static string databasePath = "";
+        public static string PlexDatabasePath = "";
+        public static string TempDirectoryPath = "";
+        public static string ffmpegPath = "";
 
         public bool useAudio = true;
         public bool useVideo = false;
         public bool detectSilenceAfterCredits = true;
+
+        public bool detectBlackframes = true;
+        public bool blackframeOnlyMovies = true;
+        public bool blackframeUseMaxSearchPeriodForEpisodes = true;
+        public bool blackframeUseMaxSearchPeriodForMovies = false;
+        public double blackframeScreenPercentage = 75;
+        public double blackframePixelPercentage = 2;
 
         public int introMatchCount = 0;
         public int creditsMatchCount = 1;
@@ -32,7 +40,6 @@ namespace plexCreditsDetect
 
         public int quickDetectFingerprintSamples = 5;
         public int fullDetectFingerprintMaxSamples = 10;
-
 
         public double introStart = 0;
         public double introEnd = 0.5;
@@ -51,14 +58,16 @@ namespace plexCreditsDetect
         public int audioAccuracy = 4;
         public int stride = 512;
         public int sampleRate = 5512;
-        public ushort minFrequency = 200;
-        public ushort maxFrequency = 2000;
+        public ushort minFrequency = 100;
+        public ushort maxFrequency = 2750;
         public int silenceDecibels = -55;
 
         public int videoAccuracy = 2;
         public double videoSizeDivisor = 50;
         public int frameRate = 1;
 
+        public bool crawlDirectoriesOnStartup = false;
+        public bool recheckBlackframesOnStartup = false;
         public bool recheckSilenceOnStartup = false;
         public bool recheckUndetectedOnStartup = false;
         public bool forceRedetect = false;
@@ -68,20 +77,22 @@ namespace plexCreditsDetect
         public Func<string, string> pathOverride = null;
 
         bool anyMissingGlobalIniSettings = false;
+        bool anyDefaultSections = false;
 
         object ICloneable.Clone()
         {
             Settings ret = new Settings();
 
-            ret.paths = new Dictionary<string, string>(paths);
-            ret.databasePath = databasePath;
-            ret.PlexDatabasePath = PlexDatabasePath;
-            ret.TempDirectoryPath = TempDirectoryPath;
-            ret.ffmpegPath = ffmpegPath;
-
             ret.useAudio = useAudio;
             ret.useVideo = useVideo;
             ret.detectSilenceAfterCredits = detectSilenceAfterCredits;
+
+            ret.detectBlackframes = detectBlackframes;
+            ret.blackframeOnlyMovies = blackframeOnlyMovies;
+            ret.blackframeUseMaxSearchPeriodForEpisodes = blackframeUseMaxSearchPeriodForEpisodes;
+            ret.blackframeUseMaxSearchPeriodForMovies = blackframeUseMaxSearchPeriodForMovies;
+            ret.blackframeScreenPercentage = blackframeScreenPercentage;
+            ret.blackframePixelPercentage = blackframePixelPercentage;
 
             ret.introMatchCount = introMatchCount;
             ret.creditsMatchCount = creditsMatchCount;
@@ -114,6 +125,8 @@ namespace plexCreditsDetect
             ret.videoSizeDivisor = videoSizeDivisor;
             ret.frameRate = frameRate;
 
+            ret.crawlDirectoriesOnStartup = crawlDirectoriesOnStartup;
+            ret.recheckBlackframesOnStartup = recheckBlackframesOnStartup;
             ret.recheckSilenceOnStartup = recheckSilenceOnStartup;
             ret.recheckUndetectedOnStartup = recheckUndetectedOnStartup;
             ret.forceRedetect = forceRedetect;
@@ -123,9 +136,11 @@ namespace plexCreditsDetect
             return ret;
         }
 
-        private void LoadSingle(string path, bool warnOnMissing = false)
+        private void LoadSingle(string path, bool isGlobalConfig = false)
         {
             Encoding encoding = Encoding.UTF8;
+
+            anyDefaultSections = false;
 
             if (pathOverride != null)
             {
@@ -150,61 +165,87 @@ namespace plexCreditsDetect
 
             data = parser.ReadFile(iniPath, encoding);
 
-            TryGet(data, warnOnMissing, "default", "databasePath", ref databasePath);
-            TryGet(data, warnOnMissing, "default", "PlexDatabasePath", ref PlexDatabasePath);
-            TryGet(data, warnOnMissing, "default", "TempDirectoryPath", ref TempDirectoryPath);
-            TryGet(data, warnOnMissing, "default", "ffmpegPath", ref ffmpegPath);
 
-            TryGet(data, warnOnMissing, "default", "useAudio", ref useAudio);
-            TryGet(data, warnOnMissing, "default", "useVideo", ref useVideo);
-            TryGet(data, warnOnMissing, "default", "detectSilenceAfterCredits", ref detectSilenceAfterCredits);
-
-            TryGet(data, warnOnMissing, "default", "introMatchCount", ref introMatchCount);
-            TryGet(data, warnOnMissing, "default", "creditsMatchCount", ref creditsMatchCount);
-
-            TryGet(data, warnOnMissing, "default", "quickDetectFingerprintSamples", ref quickDetectFingerprintSamples);
-            TryGet(data, warnOnMissing, "default", "fullDetectFingerprintMaxSamples", ref fullDetectFingerprintMaxSamples);
-
-            TryGet(data, warnOnMissing, "default", "introStart", ref introStart);
-            TryGet(data, warnOnMissing, "default", "introEnd", ref introEnd);
-            TryGet(data, warnOnMissing, "default", "introMaxSearchPeriod", ref introMaxSearchPeriod);
-
-            TryGet(data, warnOnMissing, "default", "creditsStart", ref creditsStart);
-            TryGet(data, warnOnMissing, "default", "creditsEnd", ref creditsEnd);
-            TryGet(data, warnOnMissing, "default", "creditsMaxSearchPeriod", ref creditsMaxSearchPeriod);
-
-            TryGet(data, warnOnMissing, "default", "shiftSegmentBySeconds", ref shiftSegmentBySeconds);
-
-            TryGet(data, warnOnMissing, "default", "minimumMatchSeconds", ref minimumMatchSeconds);
-            TryGet(data, warnOnMissing, "default", "PermittedGap", ref PermittedGap);
-            TryGet(data, warnOnMissing, "default", "PermittedGapWithMinimumEnclosure", ref PermittedGapWithMinimumEnclosure);
-
-            TryGet(data, warnOnMissing, "default", "audioAccuracy", ref audioAccuracy);
-            TryGet(data, warnOnMissing, "default", "stride", ref stride);
-            TryGet(data, warnOnMissing, "default", "sampleRate", ref sampleRate);
-            TryGet(data, warnOnMissing, "default", "minFrequency", ref minFrequency);
-            TryGet(data, warnOnMissing, "default", "maxFrequency", ref maxFrequency);
-            TryGet(data, warnOnMissing, "default", "silenceDecibels", ref silenceDecibels);
-
-            TryGet(data, warnOnMissing, "default", "videoAccuracy", ref videoAccuracy);
-            TryGet(data, warnOnMissing, "default", "videoSizeDivisor", ref videoSizeDivisor);
-            TryGet(data, warnOnMissing, "default", "frameRate", ref frameRate);
-
-            TryGet(data, warnOnMissing, "default", "recheckSilenceOnStartup", ref recheckSilenceOnStartup);
-            TryGet(data, warnOnMissing, "default", "recheckUndetectedOnStartup", ref recheckUndetectedOnStartup);
-            TryGet(data, warnOnMissing, "default", "forceRedetect", ref forceRedetect);
-
-            TryGet(data, warnOnMissing, "default", "redetectIfFileSizeChanges", ref redetectIfFileSizeChanges);
-
-            if (data.Sections.ContainsSection("directories"))
+            if (isGlobalConfig) // only set directories in the global config to avoid potential issues
             {
-                foreach (var dir in data["directories"])
+                if (data.Sections.ContainsSection("directories"))
                 {
-                    if (dir.KeyName.Length > 0)
+                    foreach (var dir in data["directories"])
                     {
-                        paths[dir.KeyName.Trim()] = dir.Value.Trim();
+                        if (dir.KeyName.Length > 0)
+                        {
+                            paths[Path.GetFullPath(dir.KeyName.Trim())] = Path.GetFullPath(dir.Value.Trim());
+                            pathsPlexIndexed[Path.GetFullPath(dir.Value.Trim())] = Path.GetFullPath(dir.KeyName.Trim());
+                        }
                     }
                 }
+            }
+
+
+            TryGet(data, isGlobalConfig, "intro", "introStart", ref introStart);
+            TryGet(data, isGlobalConfig, "intro", "introEnd", ref introEnd);
+            TryGet(data, isGlobalConfig, "intro", "introMaxSearchPeriod", ref introMaxSearchPeriod);
+
+
+            TryGet(data, isGlobalConfig, "credits", "creditsStart", ref creditsStart);
+            TryGet(data, isGlobalConfig, "credits", "creditsEnd", ref creditsEnd);
+            TryGet(data, isGlobalConfig, "credits", "creditsMaxSearchPeriod", ref creditsMaxSearchPeriod);
+
+
+            TryGet(data, isGlobalConfig, "matching", "useAudio", ref useAudio);
+            TryGet(data, isGlobalConfig, "matching", "useVideo", ref useVideo);
+            TryGet(data, isGlobalConfig, "matching", "introMatchCount", ref introMatchCount);
+            TryGet(data, isGlobalConfig, "matching", "creditsMatchCount", ref creditsMatchCount);
+            TryGet(data, isGlobalConfig, "matching", "quickDetectFingerprintSamples", ref quickDetectFingerprintSamples);
+            TryGet(data, isGlobalConfig, "matching", "fullDetectFingerprintMaxSamples", ref fullDetectFingerprintMaxSamples);
+            TryGet(data, isGlobalConfig, "matching", "audioAccuracy", ref audioAccuracy);
+            TryGet(data, isGlobalConfig, "matching", "stride", ref stride);
+            TryGet(data, isGlobalConfig, "matching", "sampleRate", ref sampleRate);
+            TryGet(data, isGlobalConfig, "matching", "minFrequency", ref minFrequency);
+            TryGet(data, isGlobalConfig, "matching", "maxFrequency", ref maxFrequency);
+            TryGet(data, isGlobalConfig, "matching", "videoAccuracy", ref videoAccuracy);
+            TryGet(data, isGlobalConfig, "matching", "videoSizeDivisor", ref videoSizeDivisor);
+            TryGet(data, isGlobalConfig, "matching", "frameRate", ref frameRate);
+
+
+            TryGet(data, isGlobalConfig, "silence", "detectSilenceAfterCredits", ref detectSilenceAfterCredits);
+            TryGet(data, isGlobalConfig, "silence", "silenceDecibels", ref silenceDecibels);
+
+
+            TryGet(data, isGlobalConfig, "blackframes", "detectBlackframes", ref detectBlackframes);
+            TryGet(data, isGlobalConfig, "blackframes", "blackframeOnlyMovies", ref blackframeOnlyMovies);
+            TryGet(data, isGlobalConfig, "blackframes", "blackframeUseMaxSearchPeriodForEpisodes", ref blackframeUseMaxSearchPeriodForEpisodes);
+            TryGet(data, isGlobalConfig, "blackframes", "blackframeUseMaxSearchPeriodForMovies", ref blackframeUseMaxSearchPeriodForMovies);
+            TryGet(data, isGlobalConfig, "blackframes", "blackframeScreenPercentage", ref blackframeScreenPercentage);
+            TryGet(data, isGlobalConfig, "blackframes", "blackframePixelPercentage", ref blackframePixelPercentage);
+
+
+            TryGet(data, isGlobalConfig, "timing", "shiftSegmentBySeconds", ref shiftSegmentBySeconds);
+            TryGet(data, isGlobalConfig, "timing", "minimumMatchSeconds", ref minimumMatchSeconds);
+            TryGet(data, isGlobalConfig, "timing", "PermittedGap", ref PermittedGap);
+            TryGet(data, isGlobalConfig, "timing", "PermittedGapWithMinimumEnclosure", ref PermittedGapWithMinimumEnclosure);
+
+
+            TryGet(data, isGlobalConfig, "redetection", "crawlDirectoriesOnStartup", ref crawlDirectoriesOnStartup);
+            TryGet(data, isGlobalConfig, "redetection", "recheckBlackframesOnStartup", ref recheckBlackframesOnStartup);
+            TryGet(data, isGlobalConfig, "redetection", "recheckSilenceOnStartup", ref recheckSilenceOnStartup);
+            TryGet(data, isGlobalConfig, "redetection", "recheckUndetectedOnStartup", ref recheckUndetectedOnStartup);
+            TryGet(data, isGlobalConfig, "redetection", "forceRedetect", ref forceRedetect);
+            TryGet(data, isGlobalConfig, "redetection", "redetectIfFileSizeChanges", ref redetectIfFileSizeChanges);
+
+
+            if (isGlobalConfig) // only set these in the global config to avoid potential issues
+            {
+                TryGet(data, isGlobalConfig, "paths", "databasePath", ref databasePath);
+                TryGet(data, isGlobalConfig, "paths", "PlexDatabasePath", ref PlexDatabasePath);
+                TryGet(data, isGlobalConfig, "paths", "TempDirectoryPath", ref TempDirectoryPath);
+                TryGet(data, isGlobalConfig, "paths", "ffmpegPath", ref ffmpegPath);
+            }
+
+
+            if (anyDefaultSections)
+            {
+                data.Sections.RemoveSection("default");
             }
 
             if (anyMissingGlobalIniSettings)
@@ -220,6 +261,12 @@ namespace plexCreditsDetect
 
                 Thread.Sleep(10000);
             }
+            else if (anyDefaultSections)
+            {
+                File.WriteAllText(iniPath, data.ToString(), encoding);
+            }
+
+            anyDefaultSections = false;
         }
 
         public Settings()
@@ -370,6 +417,26 @@ namespace plexCreditsDetect
 
         void TryGet<T>(IniData data, bool warnOnMissing, string section, string key, ref T assign)
         {
+            if (data.Sections.ContainsSection("default"))
+            {
+                if (data["default"].ContainsKey(key))
+                {
+                    anyDefaultSections = true;
+
+                    if (!data.Sections.ContainsSection(section))
+                    {
+                        data.Sections.AddSection(section);
+                    }
+
+                    if (!data[section].ContainsKey(key))
+                    {
+                        data[section].AddKey(key);
+                    }
+
+                    data[section][key] = data["default"][key];
+                }
+            }
+
             if (warnOnMissing && (!data.Sections.ContainsSection(section) || !data[section].ContainsKey(key)))
             {
                 data[section][key] = assign.ToString();
@@ -378,6 +445,8 @@ namespace plexCreditsDetect
                 Console.WriteLine($"!!! MISSING Ini key in global config file. Section: {section}, Key: {key}");
                 anyMissingGlobalIniSettings = true;
             }
+
+
 
             if (typeof(bool) == assign.GetType())
             {

@@ -27,6 +27,18 @@ namespace plexCreditsDetect.Database
             }
         }
 
+        public DateTime lastPlexDirectoryChanged
+        {
+            get
+            {
+                return GetDateData("lastPlexDirectoryChanged");
+            }
+            set
+            {
+                SetDateData("lastPlexDirectoryChanged", value);
+            }
+        }
+
 
         public InMemoryFingerprintDatabase()
         {
@@ -107,6 +119,15 @@ namespace plexCreditsDetect.Database
                 ExecuteDBCommand("ALTER TABLE ScannedMedia ADD COLUMN SilenceDetectionPending BOOLEAN DEFAULT FALSE;");
                 ExecuteDBCommand("CREATE INDEX IF NOT EXISTS idx_ScannedMedia_SilenceDetectionPending ON ScannedMedia(SilenceDetectionPending);");
                 SetIntData("DBVersion", 2);
+            }
+
+            if (dbversion < 3)
+            {
+                ExecuteDBCommand("ALTER TABLE ScannedMedia ADD COLUMN BlackframeDetectionPending BOOLEAN DEFAULT FALSE;");
+                ExecuteDBCommand("ALTER TABLE ScannedMedia ADD COLUMN BlackframeDetectionDone BOOLEAN DEFAULT FALSE;");
+                ExecuteDBCommand("CREATE INDEX IF NOT EXISTS idx_ScannedMedia_BlackframeDetectionPending ON ScannedMedia(BlackframeDetectionPending);");
+                ExecuteDBCommand("ALTER TABLE ScannedMedia_Timings ADD COLUMN isBlackframes BOOLEAN DEFAULT FALSE;");
+                SetIntData("DBVersion", 3);
             }
 
 
@@ -325,7 +346,7 @@ namespace plexCreditsDetect.Database
         }
         public Episode GetEpisode(Episode ep)
         {
-            var result = ExecuteDBQuery("SELECT id, name, dir, LastWriteTimeUtc, FileSize, DetectionPending, SilenceDetectionPending, SilenceDetectionDone " +
+            var result = ExecuteDBQuery("SELECT id, name, dir, LastWriteTimeUtc, FileSize, DetectionPending, SilenceDetectionPending, BlackframeDetectionPending, SilenceDetectionDone, BlackframeDetectionDone " +
                 "FROM ScannedMedia WHERE id = @id LIMIT 1;", new Dictionary<string, object>()
             {
                 { "id", ep.id }
@@ -347,7 +368,9 @@ namespace plexCreditsDetect.Database
             ep.FileSizeInDB = result.Get<long>("FileSize");
             ep.DetectionPending = result.Get<bool>("DetectionPending");
             ep.SilenceDetectionPending = result.Get<bool>("SilenceDetectionPending");
+            ep.BlackframeDetectionPending = result.Get<bool>("BlackframeDetectionPending");
             ep.SilenceDetectionDone = result.Get<bool>("SilenceDetectionDone");
+            ep.BlackframeDetectionDone = result.Get<bool>("BlackframeDetectionDone");
 
             return ep;
         }
@@ -406,8 +429,8 @@ namespace plexCreditsDetect.Database
             List<Episode> eps = new List<Episode>();
 
 
-            var result = ExecuteDBQuery("SELECT id, name, dir, LastWriteTimeUtc, FileSize, DetectionPending, SilenceDetectionPending, SilenceDetectionDone " +
-                " FROM ScannedMedia WHERE dir = @dir AND (DetectionPending = TRUE OR SilenceDetectionPending = TRUE);", new Dictionary<string, object>()
+            var result = ExecuteDBQuery("SELECT id, name, dir, LastWriteTimeUtc, FileSize, DetectionPending, SilenceDetectionPending, BlackframeDetectionPending, SilenceDetectionDone, BlackframeDetectionDone " +
+                " FROM ScannedMedia WHERE dir = @dir AND (DetectionPending = TRUE OR SilenceDetectionPending = TRUE OR BlackframeDetectionPending = TRUE);", new Dictionary<string, object>()
             {
                 { "dir", dir }
             });
@@ -430,7 +453,9 @@ namespace plexCreditsDetect.Database
                 ep.FileSizeInDB = result.Get<long>("FileSize");
                 ep.DetectionPending = result.Get<bool>("DetectionPending");
                 ep.SilenceDetectionPending = result.Get<bool>("SilenceDetectionPending");
+                ep.BlackframeDetectionPending = result.Get<bool>("BlackframeDetectionPending");
                 ep.SilenceDetectionDone = result.Get<bool>("SilenceDetectionDone");
+                ep.BlackframeDetectionDone = result.Get<bool>("BlackframeDetectionDone");
 
                 eps.Add(ep);
             }
@@ -441,7 +466,7 @@ namespace plexCreditsDetect.Database
         public void ClearDetectionPendingForDirectory(string dir)
         {
             var result = ExecuteDBCommand("UPDATE ScannedMedia " +
-                " SET DetectionPending = FALSE, SilenceDetectionPending = FALSE " +
+                " SET DetectionPending = FALSE, SilenceDetectionPending = FALSE, BlackframeDetectionPending = FALSE " +
                 " WHERE dir = @dir;", new Dictionary<string, object>()
             {
                 { "dir", dir }
@@ -453,8 +478,8 @@ namespace plexCreditsDetect.Database
             List<Episode> eps = new List<Episode>();
 
 
-            var result = ExecuteDBQuery("SELECT id, name, dir, LastWriteTimeUtc, FileSize, DetectionPending, SilenceDetectionPending, SilenceDetectionDone " +
-                " FROM ScannedMedia WHERE DetectionPending = TRUE OR SilenceDetectionPending = TRUE;");
+            var result = ExecuteDBQuery("SELECT id, name, dir, LastWriteTimeUtc, FileSize, DetectionPending, SilenceDetectionPending, BlackframeDetectionPending, SilenceDetectionDone, BlackframeDetectionDone " +
+                " FROM ScannedMedia WHERE DetectionPending = TRUE OR SilenceDetectionPending = TRUE OR BlackframeDetectionPending = TRUE;");
 
             if (!result.HasRows)
             {
@@ -474,7 +499,9 @@ namespace plexCreditsDetect.Database
                 ep.FileSizeInDB = result.Get<long>("FileSize");
                 ep.DetectionPending = result.Get<bool>("DetectionPending");
                 ep.SilenceDetectionPending = result.Get<bool>("SilenceDetectionPending");
+                ep.BlackframeDetectionPending = result.Get<bool>("BlackframeDetectionPending");
                 ep.SilenceDetectionDone = result.Get<bool>("SilenceDetectionDone");
+                ep.BlackframeDetectionDone = result.Get<bool>("BlackframeDetectionDone");
 
                 eps.Add(ep);
             }
@@ -485,8 +512,8 @@ namespace plexCreditsDetect.Database
         {
             while (true)
             {
-                var result = ExecuteDBQuery("SELECT id, name, dir, LastWriteTimeUtc, FileSize, DetectionPending, SilenceDetectionPending, SilenceDetectionDone " +
-                    " FROM ScannedMedia WHERE DetectionPending = TRUE OR SilenceDetectionPending = TRUE LIMIT 1;");
+                var result = ExecuteDBQuery("SELECT id, name, dir, LastWriteTimeUtc, FileSize, DetectionPending, SilenceDetectionPending, BlackframeDetectionPending, SilenceDetectionDone, BlackframeDetectionDone " +
+                    " FROM ScannedMedia WHERE DetectionPending = TRUE OR SilenceDetectionPending = TRUE OR BlackframeDetectionPending = TRUE LIMIT 1;");
 
                 if (!result.Read())
                 {
@@ -504,7 +531,9 @@ namespace plexCreditsDetect.Database
                 ep.FileSizeInDB = result.Get<long>("FileSize");
                 ep.DetectionPending = result.Get<bool>("DetectionPending");
                 ep.SilenceDetectionPending = result.Get<bool>("SilenceDetectionPending");
+                ep.BlackframeDetectionPending = result.Get<bool>("BlackframeDetectionPending");
                 ep.SilenceDetectionDone = result.Get<bool>("SilenceDetectionDone");
+                ep.BlackframeDetectionDone = result.Get<bool>("BlackframeDetectionDone");
 
                 return ep;
             }
@@ -516,7 +545,7 @@ namespace plexCreditsDetect.Database
             string dir;
 
             var result = ExecuteDBQuery("SELECT distinct dir " +
-                " FROM ScannedMedia WHERE DetectionPending = TRUE OR SilenceDetectionPending = TRUE;");
+                " FROM ScannedMedia WHERE DetectionPending = TRUE OR SilenceDetectionPending = TRUE OR BlackframeDetectionPending = TRUE;");
 
             if (!result.HasRows)
             {
@@ -567,11 +596,11 @@ namespace plexCreditsDetect.Database
             });
         }
 
-        public List<Segment> GetNonPlexTimings(Episode ep)
+        public List<Segment> GetNonPlexTimings(Episode ep, bool addToEpisode = false)
         {
             List<Segment> segments = new List<Segment>();
 
-            var result = ExecuteDBQuery("SELECT time_offset, end_time_offset, isCredits, isSilence " +
+            var result = ExecuteDBQuery("SELECT time_offset, end_time_offset, isCredits, isSilence, isBlackframes " +
                 " FROM ScannedMedia_Timings WHERE ScannedMedia_id = @ScannedMedia_id AND is_plex_intro = @is_plex_intro;", new Dictionary<string, object>()
             {
                 { "ScannedMedia_id", ep.id },
@@ -592,8 +621,14 @@ namespace plexCreditsDetect.Database
 
                 seg.isCredits = result.Get<bool>("isCredits");
                 seg.isSilence = result.Get<bool>("isSilence");
+                seg.isBlackframes = result.Get<bool>("isBlackframes");
 
                 segments.Add(seg);
+
+                if (addToEpisode)
+                {
+                    ep.segments.allSegments.Add(seg);
+                }
             }
 
             return segments;
@@ -604,7 +639,7 @@ namespace plexCreditsDetect.Database
             List<Episode> episodes = new List<Episode>();
             Dictionary<string, int> columns;
 
-            var result = ExecuteDBQuery("SELECT m.id as id, LastWriteTimeUtc, FileSize, DetectionPending, SilenceDetectionPending, SilenceDetectionDone, time_offset, end_time_offset, isCredits, isSilence, is_plex_intro " +
+            var result = ExecuteDBQuery("SELECT m.id as id, LastWriteTimeUtc, FileSize, DetectionPending, SilenceDetectionPending, BlackframeDetectionPending, SilenceDetectionDone, BlackframeDetectionDone, time_offset, end_time_offset, isCredits, isSilence, isBlackframes, is_plex_intro " +
                 " FROM ScannedMedia as m LEFT JOIN ScannedMedia_Timings as t ON t.ScannedMedia_id = m.id " +
                 " WHERE m.dir = @dir; ", new Dictionary<string, object>()
             {
@@ -637,7 +672,9 @@ namespace plexCreditsDetect.Database
 
                 ep.DetectionPending = result.Get<bool>("DetectionPending");
                 ep.SilenceDetectionPending = result.Get<bool>("SilenceDetectionPending");
+                ep.BlackframeDetectionPending = result.Get<bool>("BlackframeDetectionPending");
                 ep.SilenceDetectionDone = result.Get<bool>("SilenceDetectionDone");
+                ep.BlackframeDetectionDone = result.Get<bool>("BlackframeDetectionDone");
 
                 if (!result.IsDBNull("time_offset"))
                 {
@@ -646,6 +683,7 @@ namespace plexCreditsDetect.Database
                     seg.end = result.Get<double>("end_time_offset");
                     seg.isCredits = result.Get<bool>("isCredits");
                     seg.isSilence = result.Get<bool>("isSilence");
+                    seg.isBlackframes = result.Get<bool>("isBlackframes");
                     isPlexIntro = result.Get<bool>("is_plex_intro");
 
                     if (!isPlexIntro)
@@ -663,8 +701,8 @@ namespace plexCreditsDetect.Database
         public void Insert(Episode ep)
         {
             ExecuteDBCommand("REPLACE INTO ScannedMedia " +
-                " (id, name, dir, LastWriteTimeUtc, FileSize, DetectionPending, SilenceDetectionPending, SilenceDetectionDone) VALUES " +
-                " (@id, @name, @dir, @LastWriteTimeUtc, @FileSize, @DetectionPending, @SilenceDetectionPending, @SilenceDetectionDone);", new Dictionary<string, object>()
+                " (id, name, dir, LastWriteTimeUtc, FileSize, DetectionPending, SilenceDetectionPending, BlackframeDetectionPending, SilenceDetectionDone, BlackframeDetectionDone) VALUES " +
+                " (@id, @name, @dir, @LastWriteTimeUtc, @FileSize, @DetectionPending, @SilenceDetectionPending, @BlackframeDetectionPending, @SilenceDetectionDone, @BlackframeDetectionDone);", new Dictionary<string, object>()
             {
                 { "id", ep.id },
                 { "name", ep.name },
@@ -673,7 +711,9 @@ namespace plexCreditsDetect.Database
                 { "FileSize", ep.FileSizeOnDisk },
                 { "DetectionPending", ep.DetectionPending },
                 { "SilenceDetectionPending", ep.SilenceDetectionPending },
-                { "SilenceDetectionDone", ep.SilenceDetectionDone }
+                { "BlackframeDetectionPending", ep.BlackframeDetectionPending },
+                { "SilenceDetectionDone", ep.SilenceDetectionDone },
+                { "BlackframeDetectionDone", ep.BlackframeDetectionDone }
             });
             ep.InPrivateDB = true;
             ep.LastWriteTimeUtcInDB = ep.LastWriteTimeUtcOnDisk;
@@ -683,15 +723,16 @@ namespace plexCreditsDetect.Database
         public void InsertTiming(Episode ep, Segment segment, bool isPlexIntro)
         {
             ExecuteDBCommand("INSERT INTO ScannedMedia_Timings " +
-                " (ScannedMedia_id, is_plex_intro, time_offset, end_time_offset, isCredits, isSilence) VALUES " +
-                " (@ScannedMedia_id, @is_plex_intro, @time_offset, @end_time_offset, @isCredits, @isSilence);", new Dictionary<string, object>()
+                " (ScannedMedia_id, is_plex_intro, time_offset, end_time_offset, isCredits, isSilence, isBlackframes) VALUES " +
+                " (@ScannedMedia_id, @is_plex_intro, @time_offset, @end_time_offset, @isCredits, @isSilence, @isBlackframes);", new Dictionary<string, object>()
             {
                 { "ScannedMedia_id", ep.id },
                 { "is_plex_intro", isPlexIntro },
                 { "time_offset", segment.start },
                 { "end_time_offset", segment.end },
                 { "isCredits", segment.isCredits },
-                { "isSilence", segment.isSilence }
+                { "isSilence", segment.isSilence },
+                { "isBlackframes", segment.isBlackframes }
             });
         }
 
@@ -708,7 +749,9 @@ namespace plexCreditsDetect.Database
                 { "isCredits", isCredits.ToString() },
                 { "DetectionPending", ep.DetectionPending.ToString() },
                 { "SilenceDetectionPending", ep.SilenceDetectionPending.ToString() },
-                { "SilenceDetectionDone", ep.SilenceDetectionDone.ToString() }
+                { "BlackframeDetectionPending", ep.BlackframeDetectionPending.ToString() },
+                { "SilenceDetectionDone", ep.SilenceDetectionDone.ToString() },
+                { "BlackframeDetectionDone", ep.BlackframeDetectionDone.ToString() }
             }, avtype);
 
 

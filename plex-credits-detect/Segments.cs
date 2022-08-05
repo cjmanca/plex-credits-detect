@@ -16,6 +16,7 @@
             var newSeg = new Segment(min, max);
             newSeg.isCredits = segment.isCredits;
             newSeg.isSilence = segment.isSilence;
+            newSeg.isBlackframes = segment.isBlackframes;
 
             foreach (var seg in segments)
             {
