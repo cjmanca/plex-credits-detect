@@ -58,10 +58,10 @@ Each ini that is encountered will override any provided options from all previou
 
 ```dosini
 [paths]
-databasePath = C:\path\to\database\dir
-PlexDatabasePath = C:\path\to\com.plexapp.plugins.library.db
-ffmpegPath = C:\path\to\ffmpeg\bin\ffmpeg.exe
-TempDirectoryPath = C:\path\to\empty\temp\dir
+databasePath = C:\path\to\database\dir                        # Where to save the plex-credits-detect database
+PlexDatabasePath = C:\path\to\com.plexapp.plugins.library.db  # Full path to the Plex sqlite database
+ffmpegPath = C:\path\to\ffmpeg\bin\ffmpeg.exe                 # ffmpeg invocation. Can just be "ffmpeg" if it's in your path
+TempDirectoryPath = C:\path\to\empty\temp\dir                 # Where to store temp files
 
 
 [directories]
