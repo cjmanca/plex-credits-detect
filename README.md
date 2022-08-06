@@ -1,7 +1,9 @@
 # plex-credits-detect
 Uses audio spectrographic fingerprinting (thanks to [AddictedCS/soundfingerprinting](https://github.com/AddictedCS/soundfingerprinting "AddictedCS/soundfingerprinting")) to analyze all episodes in a season and insert the credit timings into the plex intro database.
 This provides a "Skip" button in plex for credits!
-This doesn't replace the plex intro scanning, but is supplemental to it (and requires it to function, currently).
+This doesn't replace the plex intro scanning, but is supplemental to it.
+
+Also can attempt to detect video frames that are mostly black to find classic style credits in movies.
 
 This tool is intended to stay running in the background all the time. It polls the plex database to check for new intro markers once per minute, and if found, will generate credits for those same episodes.
 
