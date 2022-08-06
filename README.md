@@ -68,7 +68,7 @@ TempDirectoryPath = C:\path\to\empty\temp\dir
 C:\path\to\library = C:\path\to\library
 C:\path\credits\scanner\sees = C:\path\plex\server\sees
 
-# If not using docker containers, this can be left blank
+# If not using docker containers, the directories section can be left blank
 # These let you remap paths if using docker with different path mappings than plex sees
 # Place as many of these entries as you'd like for your plex libraries. 
 # The first path is the local (internal container) path. The second path is the path the Plex server sees.
