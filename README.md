@@ -7,7 +7,7 @@ Also can attempt to detect video frames that are mostly black to find classic st
 
 This tool is intended to stay running in the background all the time. It polls the plex database to check for new intro markers once per minute, and if found, will generate credits for those same episodes.
 
-Make sure you backup your plex database before running! While I've never had an issue - it is modifying the plex db to insert the intro/credit timings, so the possibility of corruption exists.
+***Make sure you backup your plex database before running!*** While I've never had an issue - it is modifying the plex db to insert the intro/credit timings, so the possibility of corruption exists.
 
 ## Installation
 ![Docker Pulls][badge-docker-pulls]
