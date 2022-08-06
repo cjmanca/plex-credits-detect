@@ -30,8 +30,9 @@ namespace plexCreditsDetect
         public bool blackframeOnlyMovies = true;
         public bool blackframeUseMaxSearchPeriodForEpisodes = true;
         public bool blackframeUseMaxSearchPeriodForMovies = false;
-        public double blackframeScreenPercentage = 75;
+        public double blackframeScreenPercentage = 60;
         public double blackframePixelPercentage = 2;
+        public double blackframeMovieMinimumMatchSeconds = 60;
 
         public int introMatchCount = 0;
         public int creditsMatchCount = 1;
@@ -93,6 +94,7 @@ namespace plexCreditsDetect
             ret.blackframeUseMaxSearchPeriodForMovies = blackframeUseMaxSearchPeriodForMovies;
             ret.blackframeScreenPercentage = blackframeScreenPercentage;
             ret.blackframePixelPercentage = blackframePixelPercentage;
+            ret.blackframeMovieMinimumMatchSeconds = blackframeMovieMinimumMatchSeconds;
 
             ret.introMatchCount = introMatchCount;
             ret.creditsMatchCount = creditsMatchCount;
@@ -218,6 +220,7 @@ namespace plexCreditsDetect
             TryGet(data, isGlobalConfig, "blackframes", "blackframeUseMaxSearchPeriodForMovies", ref blackframeUseMaxSearchPeriodForMovies);
             TryGet(data, isGlobalConfig, "blackframes", "blackframeScreenPercentage", ref blackframeScreenPercentage);
             TryGet(data, isGlobalConfig, "blackframes", "blackframePixelPercentage", ref blackframePixelPercentage);
+            TryGet(data, isGlobalConfig, "blackframes", "blackframeMovieMinimumMatchSeconds", ref blackframeMovieMinimumMatchSeconds);
 
 
             TryGet(data, isGlobalConfig, "timing", "shiftSegmentBySeconds", ref shiftSegmentBySeconds);

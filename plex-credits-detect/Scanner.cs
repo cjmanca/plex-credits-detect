@@ -66,7 +66,7 @@ namespace plexCreditsDetect
 
         internal bool CheckIfFileNeedsScanning(Episode ep, Settings settings, bool insertCheck = false)
         {
-            bool trueValForNeedsScanning = settings.maximumMatches > 0 && (settings.useVideo || settings.useAudio);
+            bool trueValForNeedsScanning = settings.maximumMatches > 0 && (settings.useVideo || settings.useAudio) && !ep.isMovie;
             bool trueValForNeedsSilenceScanning = settings.detectSilenceAfterCredits;
 
             if (!ep.Exists) // can't scan something that doesn't exist
@@ -532,7 +532,7 @@ namespace plexCreditsDetect
                     }
 
                     // add them all to a temporary segments list, ignoring sections to allow overlapping segments to combine
-                    segments.AddSegment(ep.segments.allSegments[i], settings.PermittedGap, true);
+                    segments.AddSegment(ep.segments.allSegments[i], settings.PermittedGapWithMinimumEnclosure, true);
                 }
 
                 segments.allSegments.Sort((a, b) => a.start.CompareTo(b.start));
@@ -571,6 +571,10 @@ namespace plexCreditsDetect
 
         public void ScanDirectory(string path, Settings settings = null)
         {
+            processed = 0;
+            processAttempts = 0;
+            wroteHeader = false;
+
             if (!Directory.Exists(path))
             {
                 db.ClearDetectionPendingForDirectory(path);
@@ -595,8 +599,6 @@ namespace plexCreditsDetect
 
             try
             {
-                processed = 0;
-                processAttempts = 0;
 
                 db.SetupNewScan();
 
@@ -1149,7 +1151,7 @@ namespace plexCreditsDetect
                 times.end = ep.duration * settings.creditsEnd;
             }
 
-            Segments segments = ffmpeghelper.DetectBlackframes(times.start, times.end, ep.fullPath, settings.minimumMatchSeconds, Math.Min(1, Math.Max(0, settings.blackframeScreenPercentage / 100.0)), Math.Min(1, Math.Max(0, settings.blackframePixelPercentage / 100.0)));
+            Segments segments = ffmpeghelper.DetectBlackframes(settings, times.start, times.end, ep.fullPath, ep.isMovie ? settings.blackframeMovieMinimumMatchSeconds : settings.minimumMatchSeconds);
             
             foreach (var seg in segments.allSegments)
             {
@@ -1386,8 +1388,9 @@ namespace plexCreditsDetect
 
             do
             {
+                DateTime originalLastPlexIntroAdded = db.lastPlexIntroAdded;
                 //data = plexDB.GetRecentPlexIntroTimings(db.lastPlexIntroAdded);
-                data = plexDB.GetRecentPlexIntroTimingsSingleQuery(db.lastPlexIntroAdded);
+                data = plexDB.GetRecentPlexIntroTimingsSingleQuery(originalLastPlexIntroAdded);
 
                 if (data == null)
                 {
@@ -1402,18 +1405,31 @@ namespace plexCreditsDetect
 
                 Console.WriteLine($"Found new plex intros: {data.Count} \n");
 
+                int i = 0;
+                int count = data.Count;
+
+
+
                 foreach (var item in data)
                 {
                     if (item.episode == null)
                     {
                         Console.WriteLine("Episode null: " + item.metadata_item_id);
+                        db.lastPlexIntroAdded = item.created;
                         continue;
+                    }
+
+                    if (!item.episode.Exists)
+                    {
+                        i++;
                     }
 
                     if (!CheckSingleEpisode(item.episode, false))
                     {
+                        db.lastPlexIntroAdded = item.created;
                         continue;
                     }
+
 
                     if (settings == null || settings.currentlyLoadedSettingsPath != item.episode.fullDirPath)
                     {
@@ -1467,6 +1483,14 @@ namespace plexCreditsDetect
                     }
 
                     db.lastPlexIntroAdded = item.created;
+                }
+
+                if (firstTime && i == count)
+                {
+                    Console.WriteLine("No episodes could be found! Please check your media path mappings");
+
+                    db.lastPlexIntroAdded = originalLastPlexIntroAdded;
+                    return;
                 }
             } while (data.Any());
         }
