@@ -225,11 +225,6 @@ namespace plexCreditsDetect
                 }
             }
 
-            if (ret == path)
-            {
-                Console.WriteLine($"Video in plex DB with no base path mapped in directory mappings: {path}");
-            }
-
             ret = Path.DirectorySeparatorChar + FixPath(ret).Trim(new char[] { '/', '\\' });
 
             return ret;
