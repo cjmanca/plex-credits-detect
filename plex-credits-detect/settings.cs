@@ -33,9 +33,9 @@ namespace plexCreditsDetect
         public bool blackframeOnlyMovies = true;
         public bool blackframeUseMaxSearchPeriodForEpisodes = true;
         public bool blackframeUseMaxSearchPeriodForMovies = false;
-        public double blackframeScreenPercentage = 60;
+        public double blackframeScreenPercentage = 75;
         public double blackframePixelPercentage = 2;
-        public double blackframeMovieMinimumMatchSeconds = 60;
+        public double blackframeMovieMinimumMatchSeconds = 20;
 
         public int introMatchCount = 0;
         public int creditsMatchCount = 1;
