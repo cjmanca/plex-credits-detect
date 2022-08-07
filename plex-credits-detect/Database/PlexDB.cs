@@ -122,7 +122,7 @@ namespace plexCreditsDetect.Database
                 }
                 catch (SQLiteException e)
                 {
-                    if (count > 10)
+                    if (count >= 2)
                     {
                         Console.WriteLine($"PlexDB ExecuteDBCommand Database has been locked for a long time. Attempting to re-connect.");
                         CloseDatabase();
@@ -177,7 +177,7 @@ namespace plexCreditsDetect.Database
                 }
                 catch (SQLiteException e)
                 {
-                    if (count > 10)
+                    if (count >= 2)
                     {
                         Console.WriteLine($"PlexDB ExecuteDBCommand Database has been locked for a long time. Attempting to re-connect.");
                         CloseDatabase();
@@ -627,10 +627,13 @@ namespace plexCreditsDetect.Database
 
             while (result.Read())
             {
-                var root = new RootDirectory();
-                root.path = result.Get<string>("root_path");
-                root.library_section_id = result.Get<long>("library_section_id");
-                ret[root.library_section_id] = root;
+                if (result.Get<int>("available") == 1)
+                {
+                    var root = new RootDirectory();
+                    root.path = result.Get<string>("root_path");
+                    root.library_section_id = result.Get<long>("library_section_id");
+                    ret[root.library_section_id] = root;
+                }
             }
 
             return ret;
@@ -688,23 +691,11 @@ namespace plexCreditsDetect.Database
 
                 if (RootDirectories.ContainsKey(id))
                 {
-                    if (RootDirectories[id].section_type > 2)
-                    {
-                        valid = false;
-                    }
-                    else
+                    if (RootDirectories[id].section_type <= 2)
                     {
                         dir = Program.PathCombine(Program.plexBasePathToLocalBasePath(RootDirectories[id].path), dir);
+                        ret[dir] = result.Get<DateTime>("updated_at");
                     }
-                }
-                else
-                {
-                    dir = Program.getFullDirectory(dir);
-                }
-
-                if (valid)
-                {
-                    ret.Add(dir, result.Get<DateTime>("updated_at"));
                 }
             }
             return ret;
