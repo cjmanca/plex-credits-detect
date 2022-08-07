@@ -501,11 +501,6 @@ namespace plexCreditsDetect
         {
             try
             {
-                if (verbose)
-                {
-                    OutputSegments("Match", ep.segments, settings);
-                }
-
                 if (!doingReinsert)
                 {
                     db.DeleteEpisodeTimings(ep);
@@ -537,6 +532,11 @@ namespace plexCreditsDetect
 
                 segments.allSegments.Sort((a, b) => a.start.CompareTo(b.start));
 
+                if (verbose)
+                {
+                    OutputSegments("Inserting match: ", segments, settings);
+                }
+
                 for (int i = 0; i < segments.allSegments.Count; i++)
                 {
                     segments.allSegments[i].start -= settings.shiftSegmentBySeconds;
@@ -558,6 +558,7 @@ namespace plexCreditsDetect
                     }
 
                     plexDB.Insert(ep.meta_id, segments.allSegments[i], i + 1);
+
                 }
             }
             catch (Exception e)
@@ -1442,9 +1443,9 @@ namespace plexCreditsDetect
                     if (CheckIfFileNeedsScanning(item.episode, settings, true))
                     {
 
-                        bool doMatching = (settings.useAudio || settings.useVideo) && settings.maximumMatches > 0 && settings.recheckUndetectedOnStartup && item.episode.needsScanning;
-                        bool doSilence = settings.recheckSilenceOnStartup && settings.detectSilenceAfterCredits && item.episode.needsSilenceScanning;
-                        bool doBlackframes = settings.detectBlackframes && (!settings.blackframeOnlyMovies || item.episode.isMovie) && settings.recheckBlackframesOnStartup && item.episode.needsBlackframeScanning;
+                        bool doMatching = (settings.useAudio || settings.useVideo) && settings.maximumMatches > 0 && item.episode.needsScanning;
+                        bool doSilence = settings.detectSilenceAfterCredits && item.episode.needsSilenceScanning;
+                        bool doBlackframes = settings.detectBlackframes && (!settings.blackframeOnlyMovies || item.episode.isMovie) && item.episode.needsBlackframeScanning;
 
                         if (doMatching)
                         {
