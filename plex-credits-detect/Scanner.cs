@@ -1176,7 +1176,11 @@ namespace plexCreditsDetect
             var files = Directory.EnumerateFiles(Program.PathCombine(Settings.TempDirectoryPath, "plex-credits-detect-temp"));
             foreach (var file in files)
             {
-                File.Delete(file);
+                try
+                {
+                    File.Delete(file);
+                }
+                catch { }
             }
         }
 
