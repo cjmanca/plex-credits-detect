@@ -159,7 +159,6 @@ namespace plexCreditsDetect.Database
 
             int count = 0;
 
-
             while (true)
             {
                 try
@@ -188,6 +187,8 @@ namespace plexCreditsDetect.Database
                     if ((SQLiteErrorCode)e.ErrorCode != SQLiteErrorCode.Busy)
                     {
                         Console.WriteLine($"PlexDB ExecuteDBQuery SQLite error code {e.ErrorCode}: {e.Message}");
+                        Program.Exit();
+                        return null;
                     }
                     Thread.Sleep(10);
                 }
@@ -627,12 +628,19 @@ namespace plexCreditsDetect.Database
 
             while (result.Read())
             {
-                if (result.Get<int>("available") == 1)
+                try
                 {
-                    var root = new RootDirectory();
-                    root.path = result.Get<string>("root_path");
-                    root.library_section_id = result.Get<long>("library_section_id");
-                    ret[root.library_section_id] = root;
+                    if (result.Get<bool>("available"))
+                    {
+                        var root = new RootDirectory();
+                        root.path = result.Get<string>("root_path");
+                        root.library_section_id = result.Get<long>("library_section_id");
+                        ret[root.library_section_id] = root;
+                    }
+                }
+                catch (InvalidCastException ce)
+                {
+                    Console.WriteLine($"A library section has invalid information: {result.Get<string>("root_path")}");
                 }
             }
 
