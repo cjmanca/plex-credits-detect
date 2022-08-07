@@ -124,6 +124,8 @@ blackframeUseMaxSearchPeriodForMovies = false  # Whether to restrict via "credit
 blackframeScreenPercentage = 75                # The percentage of the screen that must be black to count as a black frame
 blackframePixelPercentage = 2                  # Percentage between 0 (absolute black) and 100 (white) that
                                                # is considered to be a "black" pixel
+blackframeMovieMinimumMatchSeconds = 20        # the minimum length of a duplicate section to be 
+                                               # considered a valid match segment when searching for black frames
 
 
 [timing]
