@@ -16,16 +16,6 @@ This tool is intended to stay running in the background all the time. It polls t
 [badge-docker-pulls]: https://img.shields.io/docker/pulls/cjmanca/plex-credits-detect?style=flat-square
 [badge-downloads]: https://img.shields.io/github/downloads/cjmanca/plex-credits-detect/total?style=flat-square
 
-### Via Docker
-```bash
-docker run -d --restart unless-stopped \
-    -v /local/config/location:/config \
-    -v "/path/to/Plex Media Server/Plug-in Support/Databases":/PlexDB \
-    -v /media:/media \
-    -it cjmanca/plex-credits-detect:main
-```
-Docker on windows will encounter issues due to the way docker handles volume mounts on windows, which doesn't allow proper SQLite locking. There's nothing I can do about this, so currently it's recommended to run natively on Windows.
-
 ### Native
 Download a [release](https://github.com/cjmanca/plex-credits-detect/releases "Releases"), extract anywhere you'd like. The first time you run it, a default config file will be generated, and the path to the config file will appear in the console window.
 
@@ -39,6 +29,16 @@ Edit the config file as described below.
 Run it again and if configured correctly, it should start working it's way through your library.
 
 This tool is intended to run in the background all the time, monitoring for new episodes and automatically generating credits for them as needed, so you'll want to set it to run at startup.
+
+### Via Docker
+```bash
+docker run -d --restart unless-stopped \
+    -v /local/config/location:/config \
+    -v "/path/to/Plex Media Server/Plug-in Support/Databases":/PlexDB \
+    -v /media:/media \
+    -it cjmanca/plex-credits-detect:main
+```
+***Docker on windows will encounter issues due to the way docker handles volume mounts on windows, which doesn't allow proper SQLite locking. There's nothing I can do about this, so currently it's recommended to run natively on Windows***.
 
 ## ini options
 A default global ini file will be generated the first time you run the utility.
