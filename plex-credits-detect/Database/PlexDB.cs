@@ -122,7 +122,7 @@ namespace plexCreditsDetect.Database
                 }
                 catch (SQLiteException e)
                 {
-                    if (count > 10)
+                    if (count >= 2)
                     {
                         Console.WriteLine($"PlexDB ExecuteDBCommand Database has been locked for a long time. Attempting to re-connect.");
                         CloseDatabase();
@@ -177,7 +177,7 @@ namespace plexCreditsDetect.Database
                 }
                 catch (SQLiteException e)
                 {
-                    if (count > 10)
+                    if (count >= 2)
                     {
                         Console.WriteLine($"PlexDB ExecuteDBCommand Database has been locked for a long time. Attempting to re-connect.");
                         CloseDatabase();
@@ -704,7 +704,7 @@ namespace plexCreditsDetect.Database
 
                 if (valid)
                 {
-                    ret.Add(dir, result.Get<DateTime>("updated_at"));
+                    ret[dir] = result.Get<DateTime>("updated_at");
                 }
             }
             return ret;
