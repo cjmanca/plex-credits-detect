@@ -82,12 +82,26 @@ namespace plexCreditsDetect
 
             Console.WriteLine($"\nSyncing newly added episodes from plex...\n");
 
+            if (!settings.monitorPlexIntros && !settings.monitorDirectoryChanges)
+            {
+                Console.WriteLine($"\nBoth monitorPlexIntros and monitorDirectoryChanges are turned off. Nothing will ever be found to process. Exiting.\n");
+                Exit();
+                return;
+            }
+
+
             firstLoop = true;
             while (true)
             {
-                scanner.CheckForNewPlexIntros();
+                if (settings.monitorPlexIntros)
+                {
+                    scanner.CheckForNewPlexIntros();
+                }
 
-                scanner.CheckForPlexChangedDirectories();
+                if (settings.monitorDirectoryChanges)
+                {
+                    scanner.CheckForPlexChangedDirectories();
+                }
 
                 if (firstLoop)
                 {
@@ -209,6 +223,11 @@ namespace plexCreditsDetect
                     ret = ret.Replace(p.Value, "");
                     break;
                 }
+            }
+
+            if (ret == path)
+            {
+                Console.WriteLine($"Video in plex DB with no base path mapped in directory mappings: {path}");
             }
 
             ret = Path.DirectorySeparatorChar + FixPath(ret).Trim(new char[] { '/', '\\' });

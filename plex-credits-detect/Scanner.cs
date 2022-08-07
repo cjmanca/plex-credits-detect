@@ -1408,7 +1408,7 @@ namespace plexCreditsDetect
                 int i = 0;
                 int count = data.Count;
 
-
+                string path = "";
 
                 foreach (var item in data)
                 {
@@ -1418,6 +1418,8 @@ namespace plexCreditsDetect
                         db.lastPlexIntroAdded = item.created;
                         continue;
                     }
+
+                    path = item.episode.fullPath;
 
                     if (!item.episode.Exists)
                     {
@@ -1488,9 +1490,10 @@ namespace plexCreditsDetect
                 if (firstTime && i == count)
                 {
                     Console.WriteLine("No episodes could be found! Please check your media path mappings");
+                    Console.WriteLine($"Example of a path that couldn't be found: {path}");
 
                     db.lastPlexIntroAdded = originalLastPlexIntroAdded;
-                    return;
+                    Program.Exit();
                 }
             } while (data.Any());
         }

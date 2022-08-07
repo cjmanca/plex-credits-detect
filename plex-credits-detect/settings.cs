@@ -22,6 +22,9 @@ namespace plexCreditsDetect
         public static string TempDirectoryPath = "";
         public static string ffmpegPath = "";
 
+        public bool monitorPlexIntros = true;
+        public bool monitorDirectoryChanges = true;
+
         public bool useAudio = true;
         public bool useVideo = false;
         public bool detectSilenceAfterCredits = true;
@@ -83,6 +86,10 @@ namespace plexCreditsDetect
         object ICloneable.Clone()
         {
             Settings ret = new Settings();
+
+
+            ret.monitorPlexIntros = monitorPlexIntros;
+            ret.monitorDirectoryChanges = monitorDirectoryChanges;
 
             ret.useAudio = useAudio;
             ret.useVideo = useVideo;
@@ -236,6 +243,8 @@ namespace plexCreditsDetect
             TryGet(data, isGlobalConfig, "redetection", "forceRedetect", ref forceRedetect);
             TryGet(data, isGlobalConfig, "redetection", "redetectIfFileSizeChanges", ref redetectIfFileSizeChanges);
 
+            TryGet(data, isGlobalConfig, "monitoring", "monitorPlexIntros", ref monitorPlexIntros);
+            TryGet(data, isGlobalConfig, "monitoring", "monitorDirectoryChanges", ref monitorDirectoryChanges);
 
             if (isGlobalConfig) // only set these in the global config to avoid potential issues
             {
@@ -256,7 +265,7 @@ namespace plexCreditsDetect
                 anyMissingGlobalIniSettings = false;
                 
                 Console.WriteLine("");
-                Console.WriteLine("Missing settings have been added to your global ini. Consult github for information on these settings:");
+                Console.WriteLine("New or missing settings have been added to your global ini. Consult github for information on these settings:");
                 Console.WriteLine("https://github.com/cjmanca/plex-credits-detect");
                 Console.WriteLine("");
 
