@@ -15,6 +15,8 @@ namespace plexCreditsDetect.Database
         long parentActivityID = -1;
         long currentActivityID = -1;
 
+        string databasePath = "";
+
         public class RootDirectory
         {
             public string path = "";
@@ -55,6 +57,7 @@ namespace plexCreditsDetect.Database
 
         public void LoadDatabase(string path)
         {
+            databasePath = path;
             if (path == null || path == "")
             {
                 throw new ArgumentException("PlexDB.LoadDatabase - Invalid database path");
@@ -108,17 +111,30 @@ namespace plexCreditsDetect.Database
                 }
             }
 
+            int count = 0;
+
             while (true)
             {
                 try
                 {
+                    count++;
                     return sqlite_cmd.ExecuteNonQuery();
                 }
                 catch (SQLiteException e)
                 {
+                    if (count > 10)
+                    {
+                        Console.WriteLine($"PlexDB ExecuteDBCommand Database has been locked for a long time. Attempting to re-connect.");
+                        CloseDatabase();
+                        LoadDatabase(databasePath);
+                        count = 0;
+                    }
+
                     if ((SQLiteErrorCode)e.ErrorCode != SQLiteErrorCode.Busy)
                     {
                         Console.WriteLine($"PlexDB ExecuteDBCommand SQLite error code {e.ErrorCode}: {e.Message}");
+                        Program.Exit();
+                        return -1;
                     }
                     Thread.Sleep(10);
                 }
@@ -141,10 +157,14 @@ namespace plexCreditsDetect.Database
                 }
             }
 
+            int count = 0;
+
+
             while (true)
             {
                 try
                 {
+                    count++;
                     //var reader = sqlite_cmd.ExecuteReader(System.Data.CommandBehavior.KeyInfo);
                     ret.reader = sqlite_cmd.ExecuteReader();
 
@@ -157,6 +177,14 @@ namespace plexCreditsDetect.Database
                 }
                 catch (SQLiteException e)
                 {
+                    if (count > 10)
+                    {
+                        Console.WriteLine($"PlexDB ExecuteDBCommand Database has been locked for a long time. Attempting to re-connect.");
+                        CloseDatabase();
+                        LoadDatabase(databasePath);
+                        count = 0;
+                    }
+
                     if ((SQLiteErrorCode)e.ErrorCode != SQLiteErrorCode.Busy)
                     {
                         Console.WriteLine($"PlexDB ExecuteDBQuery SQLite error code {e.ErrorCode}: {e.Message}");
