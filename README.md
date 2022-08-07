@@ -137,6 +137,9 @@ PermittedGapWithMinimumEnclosure = 5  # when considering combining multiple segm
                                       # considered for combining.
 
 
+[monitoring]
+monitorPlexIntros = true           # Whether to check the plex DB for new plex intros. Not necessary if only using for movies
+monitorDirectoryChanges = true     # Whether to monitor for directory changes.
 
 
 [redetection]
