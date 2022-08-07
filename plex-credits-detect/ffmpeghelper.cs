@@ -221,8 +221,10 @@ namespace plexCreditsDetect
             return segments;
         }
 
-        public static Segments DetectBlackframes(double from_seconds, double end_seconds, string in_filename, double minimumSeconds, double screenThreshold, double pixelThreshold)
+        public static Segments DetectBlackframes(Settings settings, double from_seconds, double end_seconds, string in_filename, double minimumSeconds)
         {
+            double screenThreshold = Math.Min(1, Math.Max(0, settings.blackframeScreenPercentage / 100.0));
+            double pixelThreshold = Math.Min(1, Math.Max(0, settings.blackframePixelPercentage / 100.0));
             string errors = "";
             string cropstring = "";
 
@@ -261,12 +263,15 @@ namespace plexCreditsDetect
                     seg.start = GetDoubleAfterIndex(line, "black_start:");
                     seg.end = GetDoubleAfterIndex(line, "black_end:");
 
-                    if (seg.start >= 0 && seg.end >= 0 && seg.end > seg.start && seg.duration >= minimumSeconds)
+                    if (seg.start >= 0 && seg.end >= 0 && seg.end > seg.start)
                     {
-                        segments.AddSegment(seg);
+                        segments.AddSegment(seg, settings.PermittedGapWithMinimumEnclosure);
                     }
                 }
             }
+
+            segments.allSegments.RemoveAll(x => x.duration < minimumSeconds);
+
 
             return segments;
         }
