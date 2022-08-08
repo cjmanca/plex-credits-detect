@@ -14,6 +14,8 @@ namespace plexCreditsDetect.Database
         InMemoryModelService modelService = null;
         SQLiteConnection sqlite_conn = null;
 
+        string databasePath = "";
+
 
         public DateTime lastPlexIntroAdded
         {
@@ -65,6 +67,8 @@ namespace plexCreditsDetect.Database
             }
 
             SetupNewScan();
+
+            databasePath = path;
 
             SQLiteConnectionStringBuilder sb = new SQLiteConnectionStringBuilder();
             sb.DataSource = Program.PathCombine(path, "fingerprintMedia.db");
@@ -239,14 +243,25 @@ namespace plexCreditsDetect.Database
                 }
             }
 
+            int count = 0;
+
             while (true)
             {
                 try
                 {
+                    count++;
                     return sqlite_cmd.ExecuteNonQuery();
                 }
                 catch (SQLiteException ex)
                 {
+                    if (count >= 2)
+                    {
+                        Console.WriteLine($"PlexDB ExecuteDBCommand Database has been locked for a long time. Attempting to re-connect.");
+                        CloseDatabase();
+                        LoadDatabase(databasePath);
+                        count = 0;
+                    }
+
                     if ((SQLiteErrorCode)ex.ErrorCode != SQLiteErrorCode.Busy)
                     {
                         Console.WriteLine("InMemoryFingerprintDatabase.ExecuteDBCommand exception: " + ex.Message + "" +
@@ -260,6 +275,7 @@ namespace plexCreditsDetect.Database
                                 Console.WriteLine($"{x.Key} = {x.Value}");
                             }
                         }
+                        Program.Exit();
                         return -1;
                     }
                     Thread.Sleep(10);
@@ -283,10 +299,13 @@ namespace plexCreditsDetect.Database
                 }
             }
 
+            int count = 0;
+
             while (true)
             {
                 try
                 {
+                    count++;
                     //var reader = sqlite_cmd.ExecuteReader(System.Data.CommandBehavior.KeyInfo);
                     ret.reader = sqlite_cmd.ExecuteReader();
 
@@ -299,6 +318,14 @@ namespace plexCreditsDetect.Database
                 }
                 catch (SQLiteException ex)
                 {
+                    if (count >= 2)
+                    {
+                        Console.WriteLine($"PlexDB ExecuteDBCommand Database has been locked for a long time. Attempting to re-connect.");
+                        CloseDatabase();
+                        LoadDatabase(databasePath);
+                        count = 0;
+                    }
+
                     if ((SQLiteErrorCode)ex.ErrorCode != SQLiteErrorCode.Busy)
                     {
                         Console.WriteLine("InMemoryFingerprintDatabase.ExecuteDBCommand exception: " + ex.Message + "" +
@@ -312,6 +339,7 @@ namespace plexCreditsDetect.Database
                                 Console.WriteLine($"{x.Key} = {x.Value}");
                             }
                         }
+                        Program.Exit();
                         return null;
                     }
                     Thread.Sleep(10);
