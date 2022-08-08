@@ -105,7 +105,7 @@ namespace plexCreditsDetect
 
                 if (firstLoop)
                 {
-                    Console.WriteLine($"\nCompiling list of pending seasons...\n");
+                    Console.WriteLine($"\nCompiling list of pending directories...\n");
                 }
 
                 var dirs = Scanner.db.GetPendingDirectories();
@@ -124,7 +124,7 @@ namespace plexCreditsDetect
                     {
                         count++;
                         Console.WriteLine($"");
-                        Console.WriteLine($"Processing season {count} of {dirs.Count}: {item}");
+                        Console.WriteLine($"Processing directory {count} of {dirs.Count}: {item}");
                         scanner.ScanDirectory(item);
                     }
                 }
