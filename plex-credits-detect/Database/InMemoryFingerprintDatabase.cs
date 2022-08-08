@@ -229,7 +229,7 @@ namespace plexCreditsDetect.Database
         }
 
 
-        public int ExecuteDBCommand(string cmd, Dictionary<string, object> p = null)
+        public int ExecuteDBCommand(string cmd, Dictionary<string, object> p = null, int recursionCount = 0)
         {
             var sqlite_cmd = sqlite_conn.CreateCommand();
             sqlite_cmd.CommandText = cmd;
@@ -256,15 +256,15 @@ namespace plexCreditsDetect.Database
                 {
                     if (count >= 2)
                     {
-                        Console.WriteLine($"PlexDB ExecuteDBCommand Database has been locked for a long time. Attempting to re-connect.");
+                        Console.WriteLine($"plex-credits-detect Database ExecuteDBCommand Database has been locked for a long time. Attempting to re-connect.");
                         CloseDatabase();
                         LoadDatabase(databasePath);
-                        count = 0;
+                        return ExecuteDBCommand(cmd, p, recursionCount + 1);
                     }
 
                     if ((SQLiteErrorCode)ex.ErrorCode != SQLiteErrorCode.Busy)
                     {
-                        Console.WriteLine("InMemoryFingerprintDatabase.ExecuteDBCommand exception: " + ex.Message + "" +
+                        Console.WriteLine("plex-credits-detect Database.ExecuteDBCommand exception: " + ex.Message + "" +
                             " while executing SQL: " + cmd);
                         if (p != null && p.Count > 0)
                         {
@@ -283,8 +283,14 @@ namespace plexCreditsDetect.Database
             }
         }
 
-        public SQLResultInfo ExecuteDBQuery(string cmd, Dictionary<string, object> p = null)
+        public SQLResultInfo ExecuteDBQuery(string cmd, Dictionary<string, object> p = null, int recursionCount = 0)
         {
+            if (recursionCount > 20)
+            {
+                Console.WriteLine($"plex-credits-detect Database not accessible. Retry count exceeded. Exiting.");
+                Program.Exit();
+                return null;
+            }
             SQLResultInfo ret = new SQLResultInfo();
 
             var sqlite_cmd = sqlite_conn.CreateCommand();
@@ -320,15 +326,15 @@ namespace plexCreditsDetect.Database
                 {
                     if (count >= 2)
                     {
-                        Console.WriteLine($"PlexDB ExecuteDBCommand Database has been locked for a long time. Attempting to re-connect.");
+                        Console.WriteLine($"plex-credits-detect Database ExecuteDBCommand Database has been locked for a long time. Attempting to re-connect.");
                         CloseDatabase();
                         LoadDatabase(databasePath);
-                        count = 0;
+                        return ExecuteDBQuery(cmd, p, recursionCount + 1);
                     }
 
                     if ((SQLiteErrorCode)ex.ErrorCode != SQLiteErrorCode.Busy)
                     {
-                        Console.WriteLine("InMemoryFingerprintDatabase.ExecuteDBCommand exception: " + ex.Message + "" +
+                        Console.WriteLine("plex-credits-detect Database.ExecuteDBCommand exception: " + ex.Message + "" +
                             " while executing SQL: " + cmd);
                         if (p != null && p.Count > 0)
                         {
@@ -353,14 +359,11 @@ namespace plexCreditsDetect.Database
             {
                 sqlite_conn.Close();
                 sqlite_conn.Dispose();
-                sqlite_conn = null;
             }
             catch { }
 
-            if (modelService != null)
-            {
-                modelService = null;
-            }
+            sqlite_conn = null;
+            modelService = null;
         }
 
         public AVHashes GetTrackHash(string id, bool isCredits, int partNum = -1)

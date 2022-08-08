@@ -97,8 +97,14 @@ namespace plexCreditsDetect.Database
         }
 
 
-        public int ExecuteDBCommand(string cmd, Dictionary<string, object> p = null)
+        public int ExecuteDBCommand(string cmd, Dictionary<string, object> p = null, int recursionCount = 0)
         {
+            if (recursionCount > 20)
+            {
+                Console.WriteLine($"PlexDB not accessible. Retry count exceeded. Exiting.");
+                Program.Exit();
+                return -1;
+            }
             var sqlite_cmd = sqlite_conn.CreateCommand();
             sqlite_cmd.CommandText = cmd;
             sqlite_cmd.CommandType = System.Data.CommandType.Text;
@@ -127,7 +133,7 @@ namespace plexCreditsDetect.Database
                         Console.WriteLine($"PlexDB ExecuteDBCommand Database has been locked for a long time. Attempting to re-connect.");
                         CloseDatabase();
                         LoadDatabase(databasePath);
-                        count = 0;
+                        return ExecuteDBCommand(cmd, p, recursionCount + 1);
                     }
 
                     if ((SQLiteErrorCode)e.ErrorCode != SQLiteErrorCode.Busy)
@@ -141,8 +147,14 @@ namespace plexCreditsDetect.Database
             }
         }
 
-        public SQLResultInfo ExecuteDBQuery(string cmd, Dictionary<string, object> p = null)
+        public SQLResultInfo ExecuteDBQuery(string cmd, Dictionary<string, object> p = null, int recursionCount = 0)
         {
+            if (recursionCount > 20)
+            {
+                Console.WriteLine($"PlexDB not accessible. Retry count exceeded. Exiting.");
+                Program.Exit();
+                return null;
+            }
             SQLResultInfo ret = new SQLResultInfo();
 
             var sqlite_cmd = sqlite_conn.CreateCommand();
@@ -181,7 +193,7 @@ namespace plexCreditsDetect.Database
                         Console.WriteLine($"PlexDB ExecuteDBCommand Database has been locked for a long time. Attempting to re-connect.");
                         CloseDatabase();
                         LoadDatabase(databasePath);
-                        count = 0;
+                        return ExecuteDBQuery(cmd, p, recursionCount + 1);
                     }
 
                     if ((SQLiteErrorCode)e.ErrorCode != SQLiteErrorCode.Busy)
@@ -203,10 +215,11 @@ namespace plexCreditsDetect.Database
                 {
                     sqlite_conn.Close();
                     sqlite_conn.Dispose();
-                    sqlite_conn = null;
                 }
             }
             catch { }
+
+            sqlite_conn = null;
         }
 
 
