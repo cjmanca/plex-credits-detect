@@ -298,9 +298,10 @@ namespace plexCreditsDetect
             ParseInfoFromPath(path);
         }
 
-        void ParseInfoFromPath(string path)
+        void ParseInfoFromPath(string pPath)
         {
-            path = Program.getRelativePath(path);
+            
+            string path = Program.getRelativePath(pPath);
             Exists = false;
 
             id = path;
@@ -314,12 +315,20 @@ namespace plexCreditsDetect
 
                 if (fi.Exists)
                 {
-                    Exists = true;
-                    path = fi.FullName;
-                    LastWriteTimeUtcOnDisk = fi.LastWriteTimeUtc;
-                    FileSizeOnDisk = fi.Length;
+                    try
+                    {
+                        Exists = true;
+                        LastWriteTimeUtcOnDisk = fi.LastWriteTimeUtc;
+                        FileSizeOnDisk = fi.Length;
+                        path = fi.FullName;
 
-                    break;
+                        break;
+                    }
+                    catch (Exception e) // Issue #24: a file that exists but with an invalid LastWriteTimeUtc. Possible filesystem corruption, ignore the offending file.
+                    {
+                        Exists = false;
+                        Console.WriteLine("File found with an invalid LastWriteTimeUtc index. Ignoring: " + p);
+                    }
                 }
             }
 
