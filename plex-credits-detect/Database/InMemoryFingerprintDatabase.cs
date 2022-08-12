@@ -254,7 +254,7 @@ namespace plexCreditsDetect.Database
                 }
                 catch (SQLiteException ex)
                 {
-                    if (count >= 2)
+                    if (count >= 2 + recursionCount)
                     {
                         Console.WriteLine($"plex-credits-detect Database ExecuteDBCommand Database has been locked for a long time. Attempting to re-connect.");
                         CloseDatabase();
@@ -324,7 +324,7 @@ namespace plexCreditsDetect.Database
                 }
                 catch (SQLiteException ex)
                 {
-                    if (count >= 2)
+                    if (count >= 2 + recursionCount)
                     {
                         Console.WriteLine($"plex-credits-detect Database ExecuteDBCommand Database has been locked for a long time. Attempting to re-connect.");
                         CloseDatabase();
