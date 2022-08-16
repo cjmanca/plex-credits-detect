@@ -6,6 +6,7 @@ using SoundFingerprinting.Configuration.Frames;
 using SoundFingerprinting.Data;
 using SoundFingerprinting.Query;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 namespace plexCreditsDetect
 {
@@ -289,7 +290,7 @@ namespace plexCreditsDetect
                                                 .BuildFingerprintCommand()
                                                 //.From(ep.fullPath, duration, start, avtype)
                                                 //.From(ep.fullPath, ep.duration, 0, avtype)
-                                                .From(tempFile, avtype)
+                                                .From((RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"\\?\" : "") + tempFile, avtype)
                                                 .WithFingerprintConfig(config => GenerateFingerprintConfig(config, settings))
                                                 .UsingServices(audioService)
                                                 .Hash()
@@ -1015,7 +1016,7 @@ namespace plexCreditsDetect
                 .BuildQueryCommand()
                 //.From(ep.fullPath, GetSearchDuration(ep, settings, isCredits), GetSearchStartAt(ep, settings, isCredits), avtype)
                 //.From(ep.fullPath, ep.duration, 0, avtype)
-                .From(tempFile, avtype)
+                .From((RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"\\?\" : "") + tempFile, avtype)
                 .WithQueryConfig(config =>
                 {
                     if (settings.useAudio)

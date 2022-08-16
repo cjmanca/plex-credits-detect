@@ -15,6 +15,11 @@ namespace plexCreditsDetect
     {
         public static double GetDuration(string path)
         {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                path = @"\\?\" + path;
+            }
+
             var pFormatContext = ffmpeg.avformat_alloc_context();
 
             ffmpeg.avformat_open_input(&pFormatContext, path, null, null);
@@ -46,6 +51,11 @@ namespace plexCreditsDetect
 
         public static WidthHeight GetWidthHeight(string path)
         {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                path = @"\\?\" + path;
+            }
+
             var pFormatContext = ffmpeg.avformat_alloc_context();
 
             ffmpeg.avformat_open_input(&pFormatContext, path, null, null);
@@ -139,6 +149,11 @@ namespace plexCreditsDetect
 
         public static Segments DetectSilence(string in_filename, double minimumSeconds, int silenceDecibels)
         {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                in_filename = @"\\?\" + in_filename;
+            }
+
             string errors = "";
 
             string args = $"-i \"{in_filename}\" -v fatal -threads 0 -filter:a:0 silencedetect={silenceDecibels}dB:d={minimumSeconds},ametadata=mode=print:file=-:key=lavfi.silence_start,ametadata=mode=print:file=-:key=lavfi.silence_end -vn -sn -dn -f null -";
@@ -223,6 +238,11 @@ namespace plexCreditsDetect
 
         public static Segments DetectBlackframes(Settings settings, double from_seconds, double end_seconds, string in_filename, double minimumSeconds)
         {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                in_filename = @"\\?\" + in_filename;
+            }
+
             double screenThreshold = Math.Min(1, Math.Max(0, settings.blackframeScreenPercentage / 100.0));
             double pixelThreshold = Math.Min(1, Math.Max(0, settings.blackframePixelPercentage / 100.0));
             string errors = "";
@@ -304,6 +324,12 @@ namespace plexCreditsDetect
 
         public static bool CutVideo(double from_seconds, double end_seconds, string in_filename, string out_filename, bool includeVideo, bool includeAudio, int sampleRate)
         {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                in_filename = @"\\?\" + in_filename;
+                out_filename = @"\\?\" + out_filename;
+            }
+
             /**/
             string endian = BitConverter.IsLittleEndian ? "le" : "be";
 

@@ -181,8 +181,6 @@ namespace plexCreditsDetect.Database
 
                     ExecuteDBCommand("PRAGMA foreign_keys = false;");
 
-                    
-
                     ExecuteDBCommand("ALTER TABLE ScannedMedia_Timings RENAME TO temp_table_; ");
 
                     ExecuteDBCommand("CREATE TABLE ScannedMedia_Timings(" +
