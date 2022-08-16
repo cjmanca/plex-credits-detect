@@ -35,13 +35,12 @@ namespace plexCreditsDetect
                 return false;
             }
 
-            if (ep.meta_id < 0)
+            if (!ep.InPlexDB)
             {
                 //Console.WriteLine($"{ep.id}: Metadata not found in plex db. Removing.");
                 if (ep.InPrivateDB)
                 {
-                    db.DeleteEpisodeTimings(ep);
-                    db.DeleteEpisode(ep);
+                    ep.Delete();
                 }
                 ep.DetectionPending = false;
                 ep.needsScanning = false;
@@ -56,7 +55,7 @@ namespace plexCreditsDetect
 
                 if (allowInsert)
                 {
-                    db.Insert(ep);
+                    ep.Save();
                 }
             }
 
@@ -97,7 +96,7 @@ namespace plexCreditsDetect
 
             if (!ep.InPrivateDB)
             {
-                if (ep.meta_id < 0)
+                if (ep.metadata_item_id < 0)
                 {
                     ep.needsScanning = false;
                     ep.needsSilenceScanning = false;
@@ -110,7 +109,7 @@ namespace plexCreditsDetect
                 return insertCheck;
             }
 
-            if (settings.redetectIfFileSizeChanges && ep.FileSizeOnDisk != ep.FileSizeInDB)
+            if ((settings.redetectIfFileSizeChanges || ep.EpisodeNameChanged) && ep.FileSizeOnDisk != ep.FileSizeInDB)
             {
                 ep.needsScanning = trueValForNeedsScanning;
                 ep.needsSilenceScanning = trueValForNeedsSilenceScanning;
@@ -400,7 +399,7 @@ namespace plexCreditsDetect
                     return 0;
                 }
 
-                if ((settings.redetectIfFileSizeChanges && ep.FileSizeInDB != ep.FileSizeOnDisk) || settings.forceRedetect)
+                if (((settings.redetectIfFileSizeChanges || ep.EpisodeNameChanged) && ep.FileSizeInDB != ep.FileSizeOnDisk) || settings.forceRedetect)
                 {
                     // episode changed, clear and start from scratch
                     ep.segments.allSegments.Clear();
@@ -503,6 +502,21 @@ namespace plexCreditsDetect
             {
                 if (!doingReinsert)
                 {
+                    long plex_metadata_item_id = Scanner.plexDB.GetMetadataID(ep);
+                    if (plex_metadata_item_id != ep.metadata_item_id)
+                    {
+                        ep.metadata_item_id = plex_metadata_item_id;
+                    }
+
+                    if (plex_metadata_item_id < 0)
+                    {
+                        ep.Delete();
+                        return;
+                    }
+                }
+
+                if (!doingReinsert)
+                {
                     db.DeleteEpisodeTimings(ep);
                 }
                 else
@@ -515,7 +529,7 @@ namespace plexCreditsDetect
                     db.InsertTiming(ep, ep.plexTimings, true);
                 }
 
-                plexDB.DeleteExistingIntros(ep.meta_id);
+                plexDB.DeleteExistingIntros(ep.metadata_item_id);
 
                 Segments segments = new Segments();
 
@@ -557,7 +571,7 @@ namespace plexCreditsDetect
                         segments.allSegments[i].end = 0;
                     }
 
-                    plexDB.Insert(ep.meta_id, segments.allSegments[i], i + 1);
+                    plexDB.Insert(ep.metadata_item_id, segments.allSegments[i], i + 1);
 
                 }
             }
@@ -572,6 +586,7 @@ namespace plexCreditsDetect
 
         public void ScanDirectory(string path, Settings settings = null)
         {
+            path = Program.FixPath(path);
             processed = 0;
             processAttempts = 0;
             wroteHeader = false;
@@ -636,6 +651,7 @@ namespace plexCreditsDetect
                     {
                         continue;
                     }
+
                     ep = allEpisodes.FirstOrDefault(x => x.fullPath == item);
                     if (ep == null)
                     {
@@ -930,7 +946,7 @@ namespace plexCreditsDetect
             bool silenceDetected = false;
             bool blackframesDetected = false;
 
-            if (settings.detectSilenceAfterCredits && (ep.needsScanning || ep.needsSilenceScanning || ((settings.redetectIfFileSizeChanges && ep.FileSizeInDB != ep.FileSizeOnDisk) || settings.forceRedetect)))
+            if (settings.detectSilenceAfterCredits && (ep.needsScanning || ep.needsSilenceScanning || (((settings.redetectIfFileSizeChanges || ep.EpisodeNameChanged) && ep.FileSizeInDB != ep.FileSizeOnDisk) || settings.forceRedetect)))
             {
                 if (!wroteHeader)
                 {
@@ -946,7 +962,7 @@ namespace plexCreditsDetect
                 ep.SilenceDetectionPending = false;
                 silenceDetected = true;
             }
-            if (settings.detectBlackframes && (ep.needsBlackframeScanning || ((settings.redetectIfFileSizeChanges && ep.FileSizeInDB != ep.FileSizeOnDisk) || settings.forceRedetect)))
+            if (settings.detectBlackframes && (ep.needsBlackframeScanning || (((settings.redetectIfFileSizeChanges || ep.EpisodeNameChanged) && ep.FileSizeInDB != ep.FileSizeOnDisk) || settings.forceRedetect)))
             {
                 if (!wroteHeader)
                 {
@@ -967,11 +983,15 @@ namespace plexCreditsDetect
                 if (detected > 0)
                 {
                     InsertTimings(ep, settings);
+                    if (ep.metadata_item_id < 0)
+                    {
+                        return;
+                    }
                 }
 
                 ep.needsScanning = false;
                 ep.DetectionPending = false;
-                db.Insert(ep);
+                ep.Save();
             }
         }
 
@@ -1251,7 +1271,7 @@ namespace plexCreditsDetect
                             if ((settings.recheckUndetectedOnStartup && ep.needsScanning) || (settings.recheckSilenceOnStartup && ep.needsSilenceScanning) || (settings.recheckBlackframesOnStartup && ep.needsBlackframeScanning))
                             {
                                 Console.WriteLine("Episode needs scanning: " + ep.id);
-                                db.Insert(ep);
+                                ep.Save();
                             }
                         }
                     }
@@ -1290,7 +1310,7 @@ namespace plexCreditsDetect
                             Episode ep = new Episode(file);
 
                             ep.DetectionPending = true;
-                            db.Insert(ep);
+                            ep.Save();
                         }
                     }
                 }
@@ -1338,8 +1358,11 @@ namespace plexCreditsDetect
                     var di = new DirectoryInfo(ep.fullDirPath);
                     if (di.Exists)
                     {
+                        ep.id = Program.getRelativeDirectory(Program.PathCombine(path, "dummy"));
 
-                        ep.dir = Program.getRelativeDirectory(Program.PathCombine(path, "dummy"));
+                        ep.PopulateFromPrivateDB();
+
+                        ep.dir = ep.id;
 
                         Settings settings = new Settings(ep.fullDirPath);
 
@@ -1364,7 +1387,6 @@ namespace plexCreditsDetect
                             Console.WriteLine("Directory needs scanning: " + path);
 
                             ep.fullPath = ep.fullDirPath;
-                            ep.id = ep.dir;
 
                             ep.name = Path.GetFileName(path);
 
@@ -1372,7 +1394,7 @@ namespace plexCreditsDetect
                             ep.LastWriteTimeUtcOnDisk = di.LastWriteTimeUtc;
                             ep.FileSizeOnDisk = 0;
 
-                            db.Insert(ep);
+                            ep.Save();
 
                             ignoreDirectories.RemoveAll(x => x == ep.dir);
                         }
@@ -1471,7 +1493,7 @@ namespace plexCreditsDetect
                         {
                             Console.WriteLine("Episode needs scanning: " + item.episode.id);
 
-                            db.Insert(item.episode);
+                            item.episode.Save();
 
                             db.DeleteEpisodePlexTimings(item.episode);
                             db.InsertTiming(item.episode, item.segment, true);
@@ -1501,7 +1523,7 @@ namespace plexCreditsDetect
                     Console.WriteLine($"Example of a path that couldn't be found: {path}");
 
                     db.lastPlexIntroAdded = originalLastPlexIntroAdded;
-                    Program.Exit();
+                    Program.Exit(-1);
                 }
             } while (data.Any());
         }

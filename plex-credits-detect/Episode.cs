@@ -1,6 +1,8 @@
 ﻿using plexCreditsDetect.Database;
+using Spreads.DataTypes;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -11,6 +13,7 @@ namespace plexCreditsDetect
     {
 
         // Saved in database
+        public string idInLocalDB { get; set; }
         public string id { get; set; }
         public string name { get; set; }
         public string dir { get; set; }
@@ -22,7 +25,7 @@ namespace plexCreditsDetect
             {
                 if (!_BlackframeDetectionPending.HasValue)
                 {
-                    Scanner.db.GetEpisode(this);
+                    PopulateFromPrivateDB();
                     if (!_BlackframeDetectionPending.HasValue)
                     {
                         _BlackframeDetectionPending = false;
@@ -43,7 +46,7 @@ namespace plexCreditsDetect
             {
                 if (!_SilenceDetectionPending.HasValue)
                 {
-                    Scanner.db.GetEpisode(this);
+                    PopulateFromPrivateDB();
                     if (!_SilenceDetectionPending.HasValue)
                     {
                         _SilenceDetectionPending = false;
@@ -64,7 +67,7 @@ namespace plexCreditsDetect
             {
                 if (!_DetectionPending.HasValue)
                 {
-                    Scanner.db.GetEpisode(this);
+                    PopulateFromPrivateDB();
                     if (!_DetectionPending.HasValue)
                     {
                         _DetectionPending = false;
@@ -85,7 +88,7 @@ namespace plexCreditsDetect
             {
                 if (!_SilenceDetectionDone.HasValue)
                 {
-                    Scanner.db.GetEpisode(this);
+                    PopulateFromPrivateDB();
                     if (!_SilenceDetectionDone.HasValue)
                     {
                         _SilenceDetectionDone = false;
@@ -106,7 +109,7 @@ namespace plexCreditsDetect
             {
                 if (!_BlackframeDetectionDone.HasValue)
                 {
-                    Scanner.db.GetEpisode(this);
+                    PopulateFromPrivateDB();
                     if (!_BlackframeDetectionDone.HasValue)
                     {
                         _BlackframeDetectionDone = false;
@@ -127,7 +130,7 @@ namespace plexCreditsDetect
             {
                 if (!_LastWriteTimeUtcInDB.HasValue)
                 {
-                    Scanner.db.GetEpisode(this);
+                    PopulateFromPrivateDB();
                     if (!_LastWriteTimeUtcInDB.HasValue)
                     {
                         _LastWriteTimeUtcInDB = DateTime.MinValue;
@@ -148,7 +151,7 @@ namespace plexCreditsDetect
             {
                 if (!_FileSizeInDB.HasValue)
                 {
-                    Scanner.db.GetEpisode(this);
+                    PopulateFromPrivateDB();
                     if (!_FileSizeInDB.HasValue)
                     {
                         _FileSizeInDB = -1;
@@ -166,6 +169,7 @@ namespace plexCreditsDetect
 
 
         // Extra info
+        public bool didPopulateFromLocal = false;
         public bool passed = false;
         public bool needsScanning = false;
         public bool needsSilenceScanning = false;
@@ -196,6 +200,7 @@ namespace plexCreditsDetect
         public Segments segments { get; set; } = new Segments();
         public long FileSizeOnDisk { get; set; }
         public DateTime LastWriteTimeUtcOnDisk { get; set; }
+        public bool EpisodeNameChanged { get; set; } = false;
 
 
         bool? _InPlexDB = null;
@@ -205,7 +210,7 @@ namespace plexCreditsDetect
             {
                 if (!_InPlexDB.HasValue)
                 {
-                    _InPlexDB = meta_id >= 0;
+                    _InPlexDB = metadata_item_id >= 0;
                 }
                 return _InPlexDB.Value;
             }
@@ -233,22 +238,31 @@ namespace plexCreditsDetect
             set
             {
                 _InPrivateDB = value;
+                didPopulateFromLocal = true;
             }
         }
-        long? _meta_id = null;
-        public long meta_id
+
+        public bool isSet_metadata_item_id { get; set; } = false;
+
+        long? _metadata_item_id = null;
+        public long metadata_item_id
         {
             get
             {
-                if (!_meta_id.HasValue)
+                if (!_metadata_item_id.HasValue)
                 {
-                    _meta_id = Scanner.plexDB.GetMetadataID(this);
+                    if (!InPrivateDB && !_metadata_item_id.HasValue) // InPrivateDB may populate _metadata_item_id from local database
+                    {
+                        _metadata_item_id = Scanner.plexDB.GetMetadataID(this);
+                        isSet_metadata_item_id = true;
+                    }
                 }
-                return _meta_id.Value;
+                return _metadata_item_id.Value;
             }
             set
             {
-                _meta_id = value;
+                _metadata_item_id = value;
+                isSet_metadata_item_id = true;
             }
         }
 
@@ -260,7 +274,7 @@ namespace plexCreditsDetect
             {
                 if (!checkedForPlexTimings)
                 {
-                    _plexTimings = Scanner.plexDB.GetPlexIntroTimings(meta_id);
+                    _plexTimings = Scanner.plexDB.GetPlexIntroTimings(metadata_item_id);
                     checkedForPlexTimings = true;
                 }
                 return _plexTimings;
@@ -289,6 +303,21 @@ namespace plexCreditsDetect
             }
         }
 
+
+        public void PopulateFromPrivateDB()
+        {
+            didPopulateFromLocal = true;
+            Scanner.db.GetEpisode(this);
+        }
+        public void Save()
+        {
+            Scanner.db.Insert(this);
+        }
+        public void Delete()
+        {
+            Scanner.db.DeleteEpisode(this);
+        }
+
         public Episode()
         {
 
@@ -297,11 +326,34 @@ namespace plexCreditsDetect
         {
             ParseInfoFromPath(path);
         }
+        public Episode(long metadata_id)
+        {
+            ParseInfoFromMetadataID(metadata_id);
+        }
+
+        void ParseInfoFromMetadataID(long metadata_id)
+        {
+            if (Scanner.db.GetEpisode(this, metadata_id) == null)
+            {
+                if (Scanner.plexDB.GetEpisodeForMetaID(this, metadata_id) != null)
+                {
+                    if (Scanner.db.EpisodeExists(id))
+                    {
+                        Scanner.db.GetEpisode(this);
+                    }
+                }
+            }
+        }
 
         void ParseInfoFromPath(string pPath)
         {
-            
-            string path = Program.getRelativePath(pPath);
+            id = pPath;
+            Validate();
+        }
+
+        public void Validate()
+        {
+            string path = Program.getRelativePath(id);
             Exists = false;
 
             id = path;
@@ -332,13 +384,11 @@ namespace plexCreditsDetect
                 }
             }
 
-
             fullPath = path;
             fullDirPath = Path.GetDirectoryName(path);
 
             name = Path.GetFileName(path);
             dir = Program.getRelativeDirectory(path);
-
         }
 
     }
