@@ -13,10 +13,10 @@ namespace plexCreditsDetect
     {
 
         // Saved in database
-        public string idInLocalDB { get; set; }
-        public string id { get; set; }
-        public string name { get; set; }
-        public string dir { get; set; }
+        public string idInLocalDB { get; set; } = "";
+        public string id { get; set; } = "";
+        public string name { get; set; } = "";
+        public string dir { get; set; } = "";
 
         bool? _BlackframeDetectionPending = null;
         public bool BlackframeDetectionPending
@@ -195,11 +195,11 @@ namespace plexCreditsDetect
         }
 
         public bool Exists { get; set; } = false;
-        public string fullPath { get; set; }
-        public string fullDirPath { get; set; }
+        public string fullPath { get; set; } = "";
+        public string fullDirPath { get; set; } = "";
         public Segments segments { get; set; } = new Segments();
-        public long FileSizeOnDisk { get; set; }
-        public DateTime LastWriteTimeUtcOnDisk { get; set; }
+        public long FileSizeOnDisk { get; set; } = 0;
+        public DateTime LastWriteTimeUtcOnDisk { get; set; } = DateTime.MinValue;
         public bool EpisodeNameChanged { get; set; } = false;
 
 
