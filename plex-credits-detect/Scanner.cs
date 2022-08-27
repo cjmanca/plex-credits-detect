@@ -6,6 +6,7 @@ using SoundFingerprinting.Configuration.Frames;
 using SoundFingerprinting.Data;
 using SoundFingerprinting.Query;
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 
 namespace plexCreditsDetect
@@ -515,6 +516,12 @@ namespace plexCreditsDetect
                         return;
                     }
                 }
+
+                if (ep.id != ep.idInLocalDB)
+                {
+                    ep.Save();
+                }
+
 
                 if (!doingReinsert)
                 {
@@ -1330,6 +1337,7 @@ namespace plexCreditsDetect
         }
 
 
+
         public void CheckForPlexChangedDirectories()
         {
             Dictionary<string, DateTime> data = new Dictionary<string, DateTime>();
@@ -1405,6 +1413,84 @@ namespace plexCreditsDetect
                 }
             } while (data.Any());
         }
+
+        public void CheckForPlexNewMetadata()
+        {
+            Settings settings = null;
+
+            var plexIDs = Scanner.plexDB.GetAllMetadataIDs();
+            var localIDs = Scanner.db.GetAllMetadataIDs();
+
+            var notInLocal = plexIDs.Where(p => !localIDs.Contains(p.metadata_item_id)).ToList();
+
+            if (notInLocal.Count > 0)
+            {
+                Console.WriteLine($"Found changed metadata: {notInLocal.Count} \n");
+            }
+
+            foreach (Episode ep in notInLocal)
+            {
+                ep.Validate();
+
+                if (ep == null || !ep.Exists)
+                {
+                    continue;
+                }
+                if (!IsVideoExtension(ep.fullPath))
+                {
+                    continue;
+                }
+
+                ep.PopulateFromPrivateDB();
+
+
+                if (settings == null || settings.currentlyLoadedSettingsPath != ep.fullDirPath)
+                {
+                    settings = new Settings(ep.fullDirPath);
+                }
+
+
+                if (CheckIfFileNeedsScanning(ep, settings, true))
+                {
+
+                    bool doMatching = (settings.useAudio || settings.useVideo) && settings.maximumMatches > 0 && ep.needsScanning;
+                    bool doSilence = settings.detectSilenceAfterCredits && ep.needsSilenceScanning;
+                    bool doBlackframes = settings.detectBlackframes && (!settings.blackframeOnlyMovies || ep.isMovie) && ep.needsBlackframeScanning;
+
+                    if (doMatching)
+                    {
+                        ep.DetectionPending = true;
+                    }
+                    if (doSilence)
+                    {
+                        ep.SilenceDetectionPending = true;
+                    }
+                    if (doBlackframes)
+                    {
+                        ep.BlackframeDetectionPending = true;
+                    }
+
+                    if (doMatching || doSilence || doBlackframes)
+                    {
+                        Console.WriteLine("Episode needs scanning: " + ep.id);
+                        ignoreDirectories.RemoveAll(x => x == ep.dir);
+                    }
+
+                }
+                else
+                {
+                    var items = db.GetNonPlexTimings(ep, true);
+
+                    if (items != null)
+                    {
+                        InsertTimings(ep, settings, false, true);
+                    }
+                }
+
+                ep.Save();
+            }
+        }
+
 
         public void CheckForNewPlexIntros()
         {

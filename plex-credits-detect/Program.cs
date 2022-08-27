@@ -80,8 +80,6 @@ namespace plexCreditsDetect
                 }
             }
 
-            Console.WriteLine($"\nSyncing newly added episodes from plex...\n");
-
             if (!settings.monitorPlexIntros && !settings.monitorDirectoryChanges)
             {
                 Console.WriteLine($"\nBoth monitorPlexIntros and monitorDirectoryChanges are turned off. Nothing will ever be found to process. Exiting.\n");
@@ -89,6 +87,9 @@ namespace plexCreditsDetect
                 return;
             }
 
+            
+
+            Console.WriteLine($"\nSyncing newly added episodes from plex...\n");
 
             firstLoop = true;
             while (true)
@@ -98,9 +99,11 @@ namespace plexCreditsDetect
                     scanner.CheckForNewPlexIntros();
                 }
 
+
                 if (settings.monitorDirectoryChanges)
                 {
-                    scanner.CheckForPlexChangedDirectories();
+                    scanner.CheckForPlexNewMetadata();
+                    //scanner.CheckForPlexChangedDirectories();
                 }
 
                 if (firstLoop)
@@ -212,7 +215,6 @@ namespace plexCreditsDetect
 
         public static string getRelativePath(string path)
         {
-            path = FixPath(path);
             string ret = path;
 
 
@@ -236,7 +238,6 @@ namespace plexCreditsDetect
         }
         public static string getRelativeDirectory(string path)
         {
-            path = FixPath(path);
             string ret = Path.GetDirectoryName(path);
 
             if (ret == null)
@@ -258,7 +259,7 @@ namespace plexCreditsDetect
                 }
             }
 
-            ret = Path.DirectorySeparatorChar + FixPath(ret).Trim(new char[] { '/', '\\' });
+            ret = Program.GetDBStylePath(Path.DirectorySeparatorChar + FixPath(ret).Trim(new char[] { '/', '\\' }));
 
             return ret;
         }

@@ -516,16 +516,23 @@ namespace plexCreditsDetect.Database
             return modelService.ReadHashesByTrackId(id + isCredits.ToString() + partNum);
         }
 
-        public Episode GetEpisode(string id)
+        public Episode GetEpisode(string id, bool fillOnly = true)
         {
-            return GetEpisode(new Episode(id));
+            return GetEpisode(new Episode(id), fillOnly);
         }
-        public Episode GetEpisode(long metadata_id)
+        public Episode GetEpisode(long metadata_id, bool fillOnly = true)
         {
-            return GetEpisode(new Episode(), metadata_id);
+            return GetEpisode(new Episode(), fillOnly, metadata_id);
         }
-        public Episode GetEpisode(Episode ep, long metadata_id = -1)
+        public Episode GetEpisode(Episode ep, bool fillOnly = true, long metadata_id = -1)
         {
+            if (ep == null)
+            {
+                return null;
+            }
+
+            ep.didPopulateFromLocal = true;
+
             Dictionary<string, object> p = null;
             string cmd = "";
 
@@ -555,9 +562,9 @@ namespace plexCreditsDetect.Database
                     ep.FileSizeInDB = -1;
                     ep.LastWriteTimeUtcInDB = DateTime.MinValue;
 
-                    if (metadata_id < 0 && ep.isSet_metadata_item_id && ep.metadata_item_id > 0)
+                    if (metadata_id < 0 /* && ep.isSet_metadata_item_id */ && ep.metadata_item_id > 0)
                     {
-                        return GetEpisode(ep, ep.metadata_item_id);
+                        return GetEpisode(ep, fillOnly, ep.metadata_item_id);
                     }
 
                     return null;
@@ -574,17 +581,23 @@ namespace plexCreditsDetect.Database
 
                 ep.InPrivateDB = true;
                 ep.idInLocalDB = result.Get<string>("id");
+                ep.LastWriteTimeUtcInDB = result.GetUnixDateTime("LastWriteTimeUtc");
+                ep.FileSizeInDB = result.Get<long>("FileSize");
+
+                bool prevOSIU = ep.onlySetIfUnset;
+                ep.onlySetIfUnset = fillOnly;
+
                 ep.id = ep.idInLocalDB;
                 ep.metadata_item_id = result.Get<long>("metadata_item_id");
                 ep.name = result.Get<string>("name");
                 ep.dir = result.Get<string>("dir");
-                ep.LastWriteTimeUtcInDB = result.GetUnixDateTime("LastWriteTimeUtc");
-                ep.FileSizeInDB = result.Get<long>("FileSize");
                 ep.DetectionPending = result.Get<bool>("DetectionPending");
                 ep.SilenceDetectionPending = result.Get<bool>("SilenceDetectionPending");
                 ep.BlackframeDetectionPending = result.Get<bool>("BlackframeDetectionPending");
                 ep.SilenceDetectionDone = result.Get<bool>("SilenceDetectionDone");
                 ep.BlackframeDetectionDone = result.Get<bool>("BlackframeDetectionDone");
+
+                ep.onlySetIfUnset = prevOSIU;
 
                 ep.Validate();
 
@@ -597,9 +610,10 @@ namespace plexCreditsDetect.Database
                     }
                 }
 
-                if (metadata_id > 0 && sourceID.Length > 1 && sourceID != Program.GetDBStylePath(ep.id)) // episode originally populated from plex DB, and file name/location changed
+                if (metadata_id > 0 && sourceID.Length > 1 && sourceID != ep.id) // episode originally populated from plex DB, and file name/location changed
                 {
-                    ep.id = sourceID;
+                    Episode plexEp = Scanner.plexDB.GetEpisodeForMetaID(metadata_id); // make sure we have the right id from the plex DB
+                    ep.id = plexEp.id;
                     ep.EpisodeNameChanged = true;
                     ep.Validate();
                     if (ep.Exists)
@@ -824,10 +838,15 @@ namespace plexCreditsDetect.Database
         {
             try
             {
+                if (ep.idInLocalDB == "")
+                {
+                    ep.idInLocalDB = Program.GetDBStylePath(ep.id);
+                }
+
                 DeleteEpisodeTimings(ep);
                 ExecuteDBCommand("DELETE FROM ScannedMedia WHERE id = @id;", new Dictionary<string, object>()
                 {
-                    { "id", Program.GetDBStylePath(ep.id) }
+                    { "id", Program.GetDBStylePath(ep.idInLocalDB) }
                 });
                 modelService.DeleteTrack(ep.id + true.ToString());
                 modelService.DeleteTrack(ep.id + false.ToString());
@@ -921,7 +940,7 @@ namespace plexCreditsDetect.Database
                     Segment seg = null;
 
                     string id = result.Get<string>("id");
-                    ep = episodes.FirstOrDefault(x => x.id == id);
+                    ep = episodes.FirstOrDefault(x => x.id == Program.GetDBStylePath(id));
                     if (ep == null)
                     {
                         ep = new Episode();
@@ -965,6 +984,29 @@ namespace plexCreditsDetect.Database
                 return episodes;
             }
         }
+
+        public List<long> GetAllMetadataIDs()
+        {
+            List<long> ret = new List<long>();
+
+            using (var result = ExecuteDBQuery("SELECT DISTINCT(metadata_item_id) as metadata_item_id FROM ScannedMedia;"))
+            {
+                if (!result.HasRows)
+                {
+                    return ret;
+                }
+
+                while (result.Read())
+                {
+                    long metadata_item_id = result.Get<long>("metadata_item_id");
+
+                    ret.Add(metadata_item_id);
+                }
+            }
+
+            return ret;
+        }
+
 
         public void Insert(Episode ep)
         {
