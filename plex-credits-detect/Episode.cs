@@ -13,10 +13,80 @@ namespace plexCreditsDetect
     {
 
         // Saved in database
-        public string idInLocalDB { get; set; } = "";
-        public string id { get; set; } = "";
-        public string name { get; set; } = "";
-        public string dir { get; set; } = "";
+        bool _idInLocalDB_set = false;
+        string _idInLocalDB = "";
+        public string idInLocalDB
+        {
+            get
+            {
+                return _idInLocalDB;
+            }
+            set
+            {
+                if (!onlySetIfUnset || !_idInLocalDB_set)
+                {
+                    _idInLocalDB = value;
+                    _idInLocalDB_set = true;
+                }
+            }
+        }
+
+
+        bool _id_set = false;
+        string _id = "";
+        public string id
+        { 
+            get
+            {
+                return _id;
+            }
+            set
+            {
+                if (!onlySetIfUnset || !_id_set)
+                {
+                    _id = value;
+                    _id_set = true;
+                }
+            }
+        }
+
+        bool _name_set = false;
+        string _name = "";
+        public string name
+        {
+            get
+            {
+                return _name;
+            }
+            set
+            {
+                if (!onlySetIfUnset || !_name_set)
+                {
+                    _name = value;
+                    _name_set = true;
+                }
+            }
+        }
+
+        bool _dir_set = false;
+        string _dir = "";
+        public string dir
+        {
+            get
+            {
+                return _dir;
+            }
+            set
+            {
+                if (!onlySetIfUnset || !_dir_set)
+                {
+                    _dir = value;
+                    _dir_set = true;
+                }
+            }
+        }
+
+        public bool onlySetIfUnset = false;
 
         bool? _BlackframeDetectionPending = null;
         public bool BlackframeDetectionPending
@@ -35,7 +105,10 @@ namespace plexCreditsDetect
             }
             set
             {
-                _BlackframeDetectionPending = value;
+                if (!onlySetIfUnset || !_BlackframeDetectionPending.HasValue)
+                {
+                    _BlackframeDetectionPending = value;
+                }
             }
         }
 
@@ -56,7 +129,10 @@ namespace plexCreditsDetect
             }
             set
             {
-                _SilenceDetectionPending = value;
+                if (!onlySetIfUnset || !_SilenceDetectionPending.HasValue)
+                {
+                    _SilenceDetectionPending = value;
+                }
             }
         }
 
@@ -77,7 +153,10 @@ namespace plexCreditsDetect
             }
             set
             {
-                _DetectionPending = value;
+                if (!onlySetIfUnset || !_DetectionPending.HasValue)
+                {
+                    _DetectionPending = value;
+                }
             }
         }
 
@@ -98,7 +177,10 @@ namespace plexCreditsDetect
             }
             set
             {
-                _SilenceDetectionDone = value;
+                if (!onlySetIfUnset || !_SilenceDetectionDone.HasValue)
+                {
+                    _SilenceDetectionDone = value;
+                }
             }
         }
 
@@ -119,7 +201,10 @@ namespace plexCreditsDetect
             }
             set
             {
-                _BlackframeDetectionDone = value;
+                if (!onlySetIfUnset || !_BlackframeDetectionDone.HasValue)
+                {
+                    _BlackframeDetectionDone = value;
+                }
             }
         }
 
@@ -140,7 +225,10 @@ namespace plexCreditsDetect
             }
             set
             {
-                _LastWriteTimeUtcInDB = value;
+                if (!onlySetIfUnset || !_LastWriteTimeUtcInDB.HasValue)
+                {
+                    _LastWriteTimeUtcInDB = value;
+                }
             }
         }
 
@@ -161,7 +249,10 @@ namespace plexCreditsDetect
             }
             set
             {
-                _FileSizeInDB = value;
+                if (!onlySetIfUnset || !_FileSizeInDB.HasValue)
+                {
+                    _FileSizeInDB = value;
+                }
             }
         }
 
@@ -169,11 +260,100 @@ namespace plexCreditsDetect
 
 
         // Extra info
-        public bool didPopulateFromLocal = false;
-        public bool passed = false;
-        public bool needsScanning = false;
-        public bool needsSilenceScanning = false;
-        public bool needsBlackframeScanning = false;
+        bool _didPopulateFromLocal_set = false;
+        bool _didPopulateFromLocal = false;
+        public bool didPopulateFromLocal
+        {
+            get
+            {
+                return _didPopulateFromLocal;
+            }
+            set
+            {
+                if (!onlySetIfUnset || !_didPopulateFromLocal_set)
+                {
+                    _didPopulateFromLocal = value;
+                    _didPopulateFromLocal_set = true;
+                }
+            }
+        }
+
+        bool _passed_set = false;
+        bool _passed = false;
+        public bool passed
+        {
+            get
+            {
+                return _passed;
+            }
+            set
+            {
+                if (!onlySetIfUnset || !_passed_set)
+                {
+                    _passed = value;
+                    _passed_set = true;
+                }
+            }
+        }
+
+        bool _needsScanning_set = false;
+        bool _needsScanning = false;
+        public bool needsScanning
+        {
+            get
+            {
+                return _needsScanning;
+            }
+            set
+            {
+                if (!onlySetIfUnset || !_needsScanning_set)
+                {
+                    _needsScanning = value;
+                    _needsScanning_set = true;
+                }
+            }
+        }
+
+        bool _needsSilenceScanning_set = false;
+        bool _needsSilenceScanning = false;
+        public bool needsSilenceScanning
+        {
+            get
+            {
+                return _needsSilenceScanning;
+            }
+            set
+            {
+                if (!onlySetIfUnset || !_needsSilenceScanning_set)
+                {
+                    _needsSilenceScanning = value;
+                    _needsSilenceScanning_set = true;
+                }
+            }
+        }
+
+        bool _needsBlackframeScanning_set = false;
+        bool _needsBlackframeScanning = false;
+        public bool needsBlackframeScanning
+        {
+            get
+            {
+                return _needsBlackframeScanning;
+            }
+            set
+            {
+                if (!onlySetIfUnset || !_needsBlackframeScanning_set)
+                {
+                    _needsBlackframeScanning = value;
+                    _needsBlackframeScanning_set = true;
+                }
+            }
+        }
+
+
+
+
+
         bool? _isMovie = null;
         public bool isMovie
         {
@@ -195,8 +375,43 @@ namespace plexCreditsDetect
         }
 
         public bool Exists { get; set; } = false;
-        public string fullPath { get; set; } = "";
-        public string fullDirPath { get; set; } = "";
+
+        bool _fullPath_set = false;
+        string _fullPath = "";
+        public string fullPath
+        {
+            get
+            {
+                return _fullPath;
+            }
+            set
+            {
+                if (!onlySetIfUnset || !_fullPath_set)
+                {
+                    _fullPath = value;
+                    _fullPath_set = true;
+                }
+            }
+        }
+
+        bool _fullDirPath_set = false;
+        string _fullDirPath = "";
+        public string fullDirPath
+        {
+            get
+            {
+                return _fullDirPath;
+            }
+            set
+            {
+                if (!onlySetIfUnset || !_fullDirPath_set)
+                {
+                    _fullDirPath = value;
+                    _fullDirPath_set = true;
+                }
+            }
+        }
+
         public Segments segments { get; set; } = new Segments();
         public long FileSizeOnDisk { get; set; } = 0;
         public DateTime LastWriteTimeUtcOnDisk { get; set; } = DateTime.MinValue;
@@ -216,7 +431,10 @@ namespace plexCreditsDetect
             }
             set
             {
-                _InPlexDB = value;
+                if (!onlySetIfUnset || !_InPlexDB.HasValue)
+                {
+                    _InPlexDB = value;
+                }
             }
         }
 
@@ -227,7 +445,7 @@ namespace plexCreditsDetect
             {
                 if (!_InPrivateDB.HasValue)
                 {
-                    Scanner.db.GetEpisode(this);
+                    PopulateFromPrivateDB();
                     if (!_InPrivateDB.HasValue)
                     {
                         _InPrivateDB = false;
@@ -237,8 +455,11 @@ namespace plexCreditsDetect
             }
             set
             {
-                _InPrivateDB = value;
-                didPopulateFromLocal = true;
+                if (!onlySetIfUnset || !_InPrivateDB.HasValue)
+                {
+                    _InPrivateDB = value;
+                    didPopulateFromLocal = true;
+                }
             }
         }
 
@@ -261,8 +482,11 @@ namespace plexCreditsDetect
             }
             set
             {
-                _metadata_item_id = value;
-                isSet_metadata_item_id = true;
+                if (!onlySetIfUnset || !_metadata_item_id.HasValue)
+                {
+                    _metadata_item_id = value;
+                    isSet_metadata_item_id = true;
+                }
             }
         }
 
@@ -304,10 +528,10 @@ namespace plexCreditsDetect
         }
 
 
-        public void PopulateFromPrivateDB()
+        public void PopulateFromPrivateDB(bool fillOnly = true, long metadata_id = -1)
         {
             didPopulateFromLocal = true;
-            Scanner.db.GetEpisode(this);
+            Scanner.db.GetEpisode(this, fillOnly, metadata_id);
         }
         public void Save()
         {
@@ -333,14 +557,11 @@ namespace plexCreditsDetect
 
         void ParseInfoFromMetadataID(long metadata_id)
         {
-            if (Scanner.db.GetEpisode(this, metadata_id) == null)
+            if (Scanner.db.GetEpisode(this, true, metadata_id) == null)
             {
                 if (Scanner.plexDB.GetEpisodeForMetaID(this, metadata_id) != null)
                 {
-                    if (Scanner.db.EpisodeExists(id))
-                    {
-                        Scanner.db.GetEpisode(this);
-                    }
+                    Scanner.db.GetEpisode(this, true);
                 }
             }
         }
@@ -356,7 +577,7 @@ namespace plexCreditsDetect
             string path = Program.getRelativePath(id);
             Exists = false;
 
-            id = path;
+            id = Program.GetDBStylePath(path);
 
             FileInfo fi;
 

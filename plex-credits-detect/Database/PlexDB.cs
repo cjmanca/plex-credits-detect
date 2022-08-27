@@ -21,8 +21,9 @@ namespace plexCreditsDetect.Database
         public class RootDirectory
         {
             public string path = "";
-            public long library_section_id = -1;
+            public long section_locations_id = -1;
             public long section_type = -1;
+            public long library_section_id = -1;
         }
 
 
@@ -346,7 +347,6 @@ namespace plexCreditsDetect.Database
                 ep.id = result.Get<string>("file");
                 ep.metadata_item_id = metadata_item_id;
                 ep.InPlexDB = true;
-                ep.InPrivateDB = false;
 
                 ep.Validate();
 
@@ -712,8 +712,9 @@ namespace plexCreditsDetect.Database
                         {
                             var root = new RootDirectory();
                             root.path = result.Get<string>("root_path");
+                            root.section_locations_id = result.Get<long>("id");
                             root.library_section_id = result.Get<long>("library_section_id");
-                            ret[root.library_section_id] = root;
+                            ret[root.section_locations_id] = root;
                         }
                     }
                     catch (InvalidCastException ce)
@@ -741,9 +742,12 @@ namespace plexCreditsDetect.Database
                 {
                     long id = result.Get<long>("id");
 
-                    if (RootDirectories.ContainsKey(id))
+                    foreach (var item in RootDirectories)
                     {
-                        RootDirectories[id].section_type = result.Get<int>("section_type");
+                        if (item.Value.library_section_id == id)
+                        {
+                            RootDirectories[item.Key].section_type = result.Get<int>("section_type");
+                        }
                     }
                 }
             }
@@ -769,7 +773,7 @@ namespace plexCreditsDetect.Database
                 while (result.Read())
                 {
                     string dir = result.Get<string>("path");
-                    long id = result.Get<long>("library_section_id");
+                    long library_section_id = result.Get<long>("library_section_id");
                     bool valid = true;
 
                     if (dir == "")
@@ -777,11 +781,11 @@ namespace plexCreditsDetect.Database
                         continue;
                     }
 
-                    if (RootDirectories.ContainsKey(id))
+                    foreach (var item in RootDirectories)
                     {
-                        if (RootDirectories[id].section_type <= 2)
+                        if (item.Value.library_section_id == library_section_id)
                         {
-                            dir = Program.PathCombine(Program.plexBasePathToLocalBasePath(RootDirectories[id].path), dir);
+                            dir = Program.PathCombine(Program.plexBasePathToLocalBasePath(item.Value.path), dir);
                             ret[dir] = result.Get<DateTime>("updated_at");
                         }
                     }
@@ -790,6 +794,88 @@ namespace plexCreditsDetect.Database
 
             return ret;
         }
+
+        /*
+        public List<long> GetAllMetadataIDs()
+        {
+            List<long> ret = new List<long>();
+
+            using (var result = ExecuteDBQuery("SELECT id, library_section_id FROM metadata_items " +
+                " WHERE `metadata_type` = 1 OR `metadata_type` = 4;"))
+            {
+                if (!result.HasRows)
+                {
+                    return ret;
+                }
+
+                while (result.Read())
+                {
+                    long id = result.Get<long>("id");
+                    long library_section_id = result.Get<long>("library_section_id");
+
+                    if (RootDirectories.ContainsKey(library_section_id))
+                    {
+                        if (RootDirectories[library_section_id].section_type <= 2)
+                        {
+                            ret.Add(id);
+                        }
+                    }
+                }
+            }
+
+            return ret;
+        }
+        */
+
+
+
+        public List<Episode> GetAllMetadataIDs()
+        {
+            long tagid = GetTagID();
+
+            if (tagid < 0)
+            {
+                return null;
+            }
+
+            using (var result = ExecuteDBQuery("SELECT media_items.metadata_item_id as metadata_item_id, media_parts.`file` as `file`,  media_items.section_location_id as section_location_id " +
+                " FROM media_items INNER JOIN media_parts ON media_items.id = media_parts.media_item_id " +
+                " WHERE media_parts.file != '' AND media_parts.deleted_at IS NULL AND media_items.section_location_id IS NOT NULL GROUP BY media_parts.`file`"))
+            {
+                if (!result.HasRows)
+                {
+                    return null;
+                }
+
+                List<Episode> ret = new List<Episode>();
+
+                while (result.Read())
+                {
+                    long section_location_id = result.Get<long>("section_location_id");
+
+                    if (RootDirectories.ContainsKey(section_location_id))
+                    {
+                        if (RootDirectories[section_location_id].section_type <= 2)
+                        {
+                            Episode episode = new Episode(); // avoid validating right now for performance reasons
+
+                            episode.fullPath = result.Get<string>("file");
+                            episode.id = episode.fullPath;
+
+                            episode.metadata_item_id = result.Get<long>("metadata_item_id");
+                            episode.InPlexDB = true;
+
+                            ret.Add(episode);
+                        }
+                    }
+                }
+
+                return ret;
+            }
+        }
+
+
+
 
         public ShowSeasonInfo GetShowAndSeason(long metadata_item_id)
         {
