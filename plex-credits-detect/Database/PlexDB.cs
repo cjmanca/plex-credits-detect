@@ -479,7 +479,7 @@ namespace plexCreditsDetect.Database
                 " INNER JOIN media_items ON taggings.metadata_item_id = media_items.metadata_item_id " +
                 " INNER JOIN media_parts ON media_items.id = media_parts.media_item_id " +
                 " WHERE taggings.`created_at` > @created_at AND taggings.`tag_id` = @tag_id AND taggings.`index` = @index AND media_parts.file != '' AND media_parts.deleted_at IS NULL" +
-                " ORDER BY created_at ASC LIMIT 100;", new Dictionary<string, object>()
+                " ORDER BY created_at ASC;", new Dictionary<string, object>()
             {
                 { "created_at", since },
                 { "tag_id", tagid },
