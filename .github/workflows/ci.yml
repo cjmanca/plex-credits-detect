@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: phish108/autotag-action@1.1.47
+      - uses: phish108/autotag-action@1.1.51
         id: tagger
         if: github.event_name != 'pull_request' 
         with:
