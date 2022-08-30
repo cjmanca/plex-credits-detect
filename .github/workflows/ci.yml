@@ -35,7 +35,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           with-v: true
-          release-branch: main,
+          release-branch: main,master
           # seems to be a bug right now in phish108/autotag-action where it can't parse the release-branch unless there's a comma in it
       - name: Checkout
         uses: actions/checkout@v3
