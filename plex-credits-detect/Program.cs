@@ -27,9 +27,7 @@ namespace plexCreditsDetect
             Scanner.audioService = new FFmpegAudioService();
 
             //Scanner.db = new LMDBFingerprintDatabase(settings.databasePath);
-            Scanner.db = new InMemoryFingerprintDatabase(Settings.databasePath);
             Scanner.plexDB.LoadDatabase(Settings.PlexDatabasePath);
-
 
             foreach (var dir in Scanner.plexDB.RootDirectories)
             {
@@ -42,6 +40,8 @@ namespace plexCreditsDetect
                     }
                 }
             }
+
+            Scanner.db = new InMemoryFingerprintDatabase(Settings.databasePath);
 
 
             Scanner scanner = new Scanner();
@@ -80,15 +80,16 @@ namespace plexCreditsDetect
                 }
             }
 
-            Console.WriteLine($"\nSyncing newly added episodes from plex...\n");
-
             if (!settings.monitorPlexIntros && !settings.monitorDirectoryChanges)
             {
                 Console.WriteLine($"\nBoth monitorPlexIntros and monitorDirectoryChanges are turned off. Nothing will ever be found to process. Exiting.\n");
-                Exit();
+                Exit(-1);
                 return;
             }
 
+            
+
+            Console.WriteLine($"\nSyncing newly added episodes from plex...\n");
 
             firstLoop = true;
             while (true)
@@ -98,9 +99,11 @@ namespace plexCreditsDetect
                     scanner.CheckForNewPlexIntros();
                 }
 
+
                 if (settings.monitorDirectoryChanges)
                 {
-                    scanner.CheckForPlexChangedDirectories();
+                    scanner.CheckForPlexNewMetadata();
+                    //scanner.CheckForPlexChangedDirectories();
                 }
 
                 if (firstLoop)
@@ -151,7 +154,7 @@ namespace plexCreditsDetect
             {
                 ep = new Episode(e.FullPath);
                 ep.DetectionPending = true;
-                Scanner.db.Insert(ep);
+                ep.Save();
             }
         }
 
@@ -173,7 +176,7 @@ namespace plexCreditsDetect
             }
             Episode ep = new Episode(e.FullPath);
             ep.DetectionPending = true;
-            Scanner.db.Insert(ep);
+            ep.Save();
         }
 
         private static void File_Changed(object sender, FileSystemEventArgs e)
@@ -184,7 +187,7 @@ namespace plexCreditsDetect
             }
             Episode ep = new Episode(e.FullPath);
             ep.DetectionPending = true;
-            Scanner.db.Insert(ep);
+            ep.Save();
         }
 
         public static string GetWinStylePath(string path)
@@ -195,10 +198,14 @@ namespace plexCreditsDetect
         {
             return path.Replace('\\', '/');
         }
+        public static string GetDBStylePath(string path)
+        {
+            return "/" + path.Replace('\\', '/').Trim('/');
+        }
 
         public static string FixPath(string path)
         {
-            return path.Replace('\\', Path.DirectorySeparatorChar);
+            return path.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar);
         }
 
         public static string PathCombine(string p1, string p2)
@@ -252,7 +259,7 @@ namespace plexCreditsDetect
                 }
             }
 
-            ret = Path.DirectorySeparatorChar + ret.Trim(new char[] { '/', '\\' });
+            ret = Program.GetDBStylePath(Path.DirectorySeparatorChar + FixPath(ret).Trim(new char[] { '/', '\\' }));
 
             return ret;
         }
@@ -301,7 +308,7 @@ namespace plexCreditsDetect
             return path;
         }
 
-        public static void Exit()
+        public static void Exit(int exitCode = 0)
         {
             if (Scanner.db != null)
             {
@@ -311,7 +318,7 @@ namespace plexCreditsDetect
             {
                 Scanner.plexDB.CloseDatabase();
             }
-            Environment.Exit(0);
+            Environment.Exit(exitCode);
         }
     }
 }

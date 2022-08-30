@@ -183,8 +183,8 @@ namespace plexCreditsDetect
                     {
                         if (dir.KeyName.Length > 0)
                         {
-                            paths[Path.GetFullPath(dir.KeyName.Trim())] = Path.GetFullPath(dir.Value.Trim());
-                            pathsPlexIndexed[Path.GetFullPath(dir.Value.Trim())] = Path.GetFullPath(dir.KeyName.Trim());
+                            paths[dir.KeyName.Trim()] = dir.Value.Trim();
+                            pathsPlexIndexed[dir.Value.Trim()] = dir.KeyName.Trim();
                         }
                     }
                 }

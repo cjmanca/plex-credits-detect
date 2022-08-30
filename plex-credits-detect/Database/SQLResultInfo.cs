@@ -3,7 +3,7 @@ using System.Diagnostics;
 
 namespace plexCreditsDetect.Database
 {
-    public class SQLResultInfo
+    public class SQLResultInfo : IDisposable
     {
         public SQLiteDataReader reader = null;
 
@@ -142,6 +142,20 @@ namespace plexCreditsDetect.Database
 
 
             return reader.IsDBNull(columns[v]);
+        }
+
+        ~SQLResultInfo() // don't rely on GC, but make sure to clean up in case it gets missed somehow
+        {
+            Dispose();
+        }
+
+        public void Dispose()
+        {
+            if (reader != null && !reader.IsClosed)
+            { 
+                reader.Close();
+            }
+            reader = null;
         }
     }
 }

@@ -6,6 +6,8 @@ using SoundFingerprinting.Configuration.Frames;
 using SoundFingerprinting.Data;
 using SoundFingerprinting.Query;
 using System.Diagnostics;
+using System.IO;
+using System.Runtime.InteropServices;
 
 namespace plexCreditsDetect
 {
@@ -16,7 +18,7 @@ namespace plexCreditsDetect
         internal static SoundFingerprinting.Emy.FFmpegAudioService audioService = null;
         internal static List<string> ignoreDirectories = new List<string>();
 
-        private static readonly string[] allowedExtensions = new string[] { ".3g2", ".3gp", ".amv", ".asf", ".avi", ".flv", ".f4v", ".f4p", ".f4a", ".f4b", ".m4v", ".mkv", ".mov", ".qt", ".mp4", ".m4p", ".mpg", ".mp2", ".mpeg", ".mpe", ".mpv", ".m2v", ".mts", ".m2ts", ".ts", ".ogv", ".ogg", ".rm", ".rmvb", ".viv", ".vob", ".webm", ".wmv" };
+        private static readonly string[] allowedExtensions = new string[] { ".3g2", ".3gp", ".amv", ".asf", ".avi", ".flv", ".f4v", ".f4p", ".f4a", ".f4b", ".m4v", ".mkv", ".mov", ".qt", ".mp4", ".m4p", ".mpg", ".mp2", ".mpeg", ".mpe", ".mpv", ".m2v", ".mts", ".m2ts", ".ts", ".ogv", ".ogg", ".rm", ".rmvb", ".viv", ".vob", ".webm", ".wmv", ".divx", ".xvid", ".264", ".265", ".ogm" };
 
         int processed = 0;
         int processAttempts = 0;
@@ -35,13 +37,12 @@ namespace plexCreditsDetect
                 return false;
             }
 
-            if (ep.meta_id < 0)
+            if (!ep.InPlexDB)
             {
                 //Console.WriteLine($"{ep.id}: Metadata not found in plex db. Removing.");
                 if (ep.InPrivateDB)
                 {
-                    db.DeleteEpisodeTimings(ep);
-                    db.DeleteEpisode(ep);
+                    ep.Delete();
                 }
                 ep.DetectionPending = false;
                 ep.needsScanning = false;
@@ -56,7 +57,7 @@ namespace plexCreditsDetect
 
                 if (allowInsert)
                 {
-                    db.Insert(ep);
+                    ep.Save();
                 }
             }
 
@@ -97,7 +98,7 @@ namespace plexCreditsDetect
 
             if (!ep.InPrivateDB)
             {
-                if (ep.meta_id < 0)
+                if (ep.metadata_item_id < 0)
                 {
                     ep.needsScanning = false;
                     ep.needsSilenceScanning = false;
@@ -110,7 +111,7 @@ namespace plexCreditsDetect
                 return insertCheck;
             }
 
-            if (settings.redetectIfFileSizeChanges && ep.FileSizeOnDisk != ep.FileSizeInDB)
+            if ((settings.redetectIfFileSizeChanges || ep.EpisodeNameChanged) && ep.FileSizeOnDisk != ep.FileSizeInDB)
             {
                 ep.needsScanning = trueValForNeedsScanning;
                 ep.needsSilenceScanning = trueValForNeedsSilenceScanning;
@@ -290,7 +291,7 @@ namespace plexCreditsDetect
                                                 .BuildFingerprintCommand()
                                                 //.From(ep.fullPath, duration, start, avtype)
                                                 //.From(ep.fullPath, ep.duration, 0, avtype)
-                                                .From(tempFile, avtype)
+                                                .From((RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"\\?\" : "") + tempFile, avtype)
                                                 .WithFingerprintConfig(config => GenerateFingerprintConfig(config, settings))
                                                 .UsingServices(audioService)
                                                 .Hash()
@@ -400,7 +401,7 @@ namespace plexCreditsDetect
                     return 0;
                 }
 
-                if ((settings.redetectIfFileSizeChanges && ep.FileSizeInDB != ep.FileSizeOnDisk) || settings.forceRedetect)
+                if (((settings.redetectIfFileSizeChanges || ep.EpisodeNameChanged) && ep.FileSizeInDB != ep.FileSizeOnDisk) || settings.forceRedetect)
                 {
                     // episode changed, clear and start from scratch
                     ep.segments.allSegments.Clear();
@@ -503,6 +504,27 @@ namespace plexCreditsDetect
             {
                 if (!doingReinsert)
                 {
+                    long plex_metadata_item_id = Scanner.plexDB.GetMetadataID(ep);
+                    if (plex_metadata_item_id != ep.metadata_item_id)
+                    {
+                        ep.metadata_item_id = plex_metadata_item_id;
+                    }
+
+                    if (plex_metadata_item_id < 0)
+                    {
+                        ep.Delete();
+                        return;
+                    }
+                }
+
+                if (ep.id != ep.idInLocalDB)
+                {
+                    ep.Save();
+                }
+
+
+                if (!doingReinsert)
+                {
                     db.DeleteEpisodeTimings(ep);
                 }
                 else
@@ -515,7 +537,7 @@ namespace plexCreditsDetect
                     db.InsertTiming(ep, ep.plexTimings, true);
                 }
 
-                plexDB.DeleteExistingIntros(ep.meta_id);
+                plexDB.DeleteExistingIntros(ep.metadata_item_id);
 
                 Segments segments = new Segments();
 
@@ -557,7 +579,7 @@ namespace plexCreditsDetect
                         segments.allSegments[i].end = 0;
                     }
 
-                    plexDB.Insert(ep.meta_id, segments.allSegments[i], i + 1);
+                    plexDB.Insert(ep.metadata_item_id, segments.allSegments[i], i + 1);
 
                 }
             }
@@ -572,6 +594,7 @@ namespace plexCreditsDetect
 
         public void ScanDirectory(string path, Settings settings = null)
         {
+            path = Program.FixPath(path);
             processed = 0;
             processAttempts = 0;
             wroteHeader = false;
@@ -636,6 +659,7 @@ namespace plexCreditsDetect
                     {
                         continue;
                     }
+
                     ep = allEpisodes.FirstOrDefault(x => x.fullPath == item);
                     if (ep == null)
                     {
@@ -930,7 +954,7 @@ namespace plexCreditsDetect
             bool silenceDetected = false;
             bool blackframesDetected = false;
 
-            if (settings.detectSilenceAfterCredits && (ep.needsScanning || ep.needsSilenceScanning || ((settings.redetectIfFileSizeChanges && ep.FileSizeInDB != ep.FileSizeOnDisk) || settings.forceRedetect)))
+            if (settings.detectSilenceAfterCredits && (ep.needsScanning || ep.needsSilenceScanning || (((settings.redetectIfFileSizeChanges || ep.EpisodeNameChanged) && ep.FileSizeInDB != ep.FileSizeOnDisk) || settings.forceRedetect)))
             {
                 if (!wroteHeader)
                 {
@@ -946,7 +970,7 @@ namespace plexCreditsDetect
                 ep.SilenceDetectionPending = false;
                 silenceDetected = true;
             }
-            if (settings.detectBlackframes && (ep.needsBlackframeScanning || ((settings.redetectIfFileSizeChanges && ep.FileSizeInDB != ep.FileSizeOnDisk) || settings.forceRedetect)))
+            if (settings.detectBlackframes && (ep.needsBlackframeScanning || (((settings.redetectIfFileSizeChanges || ep.EpisodeNameChanged) && ep.FileSizeInDB != ep.FileSizeOnDisk) || settings.forceRedetect)))
             {
                 if (!wroteHeader)
                 {
@@ -967,11 +991,15 @@ namespace plexCreditsDetect
                 if (detected > 0)
                 {
                     InsertTimings(ep, settings);
+                    if (ep.metadata_item_id < 0)
+                    {
+                        return;
+                    }
                 }
 
                 ep.needsScanning = false;
                 ep.DetectionPending = false;
-                db.Insert(ep);
+                ep.Save();
             }
         }
 
@@ -995,7 +1023,7 @@ namespace plexCreditsDetect
                 .BuildQueryCommand()
                 //.From(ep.fullPath, GetSearchDuration(ep, settings, isCredits), GetSearchStartAt(ep, settings, isCredits), avtype)
                 //.From(ep.fullPath, ep.duration, 0, avtype)
-                .From(tempFile, avtype)
+                .From((RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"\\?\" : "") + tempFile, avtype)
                 .WithQueryConfig(config =>
                 {
                     if (settings.useAudio)
@@ -1251,7 +1279,7 @@ namespace plexCreditsDetect
                             if ((settings.recheckUndetectedOnStartup && ep.needsScanning) || (settings.recheckSilenceOnStartup && ep.needsSilenceScanning) || (settings.recheckBlackframesOnStartup && ep.needsBlackframeScanning))
                             {
                                 Console.WriteLine("Episode needs scanning: " + ep.id);
-                                db.Insert(ep);
+                                ep.Save();
                             }
                         }
                     }
@@ -1290,7 +1318,7 @@ namespace plexCreditsDetect
                             Episode ep = new Episode(file);
 
                             ep.DetectionPending = true;
-                            db.Insert(ep);
+                            ep.Save();
                         }
                     }
                 }
@@ -1307,6 +1335,7 @@ namespace plexCreditsDetect
             }
 
         }
+
 
 
         public void CheckForPlexChangedDirectories()
@@ -1338,8 +1367,11 @@ namespace plexCreditsDetect
                     var di = new DirectoryInfo(ep.fullDirPath);
                     if (di.Exists)
                     {
+                        ep.id = Program.getRelativeDirectory(Program.PathCombine(path, "dummy"));
 
-                        ep.dir = Program.getRelativeDirectory(Program.PathCombine(path, "dummy"));
+                        ep.PopulateFromPrivateDB();
+
+                        ep.dir = ep.id;
 
                         Settings settings = new Settings(ep.fullDirPath);
 
@@ -1364,7 +1396,6 @@ namespace plexCreditsDetect
                             Console.WriteLine("Directory needs scanning: " + path);
 
                             ep.fullPath = ep.fullDirPath;
-                            ep.id = ep.dir;
 
                             ep.name = Path.GetFileName(path);
 
@@ -1372,7 +1403,7 @@ namespace plexCreditsDetect
                             ep.LastWriteTimeUtcOnDisk = di.LastWriteTimeUtc;
                             ep.FileSizeOnDisk = 0;
 
-                            db.Insert(ep);
+                            ep.Save();
 
                             ignoreDirectories.RemoveAll(x => x == ep.dir);
                         }
@@ -1382,6 +1413,85 @@ namespace plexCreditsDetect
                 }
             } while (data.Any());
         }
+
+        public void CheckForPlexNewMetadata()
+        {
+            Settings settings = null;
+
+            var plexIDs = Scanner.plexDB.GetAllMetadataIDs();
+            var localIDs = Scanner.db.GetAllMetadataIDs();
+
+            var notInLocal = plexIDs.Where(p => !localIDs.Contains(p.metadata_item_id)).ToList();
+
+            if (notInLocal.Count > 0)
+            {
+                Console.WriteLine($"Found changed metadata: {notInLocal.Count} \n");
+            }
+
+            foreach (Episode ep in notInLocal)
+            {
+                ep.Validate();
+
+                if (ep == null || !ep.Exists)
+                {
+                    continue;
+                }
+                if (!IsVideoExtension(ep.fullPath))
+                {
+                    Console.WriteLine($"Invalid video extension: {ep.id} \n");
+                    continue;
+                }
+
+                ep.PopulateFromPrivateDB();
+
+
+                if (settings == null || settings.currentlyLoadedSettingsPath != ep.fullDirPath)
+                {
+                    settings = new Settings(ep.fullDirPath);
+                }
+
+
+                if (CheckIfFileNeedsScanning(ep, settings, true))
+                {
+
+                    bool doMatching = (settings.useAudio || settings.useVideo) && settings.maximumMatches > 0 && ep.needsScanning;
+                    bool doSilence = settings.detectSilenceAfterCredits && ep.needsSilenceScanning;
+                    bool doBlackframes = settings.detectBlackframes && (!settings.blackframeOnlyMovies || ep.isMovie) && ep.needsBlackframeScanning;
+
+                    if (doMatching)
+                    {
+                        ep.DetectionPending = true;
+                    }
+                    if (doSilence)
+                    {
+                        ep.SilenceDetectionPending = true;
+                    }
+                    if (doBlackframes)
+                    {
+                        ep.BlackframeDetectionPending = true;
+                    }
+
+                    if (doMatching || doSilence || doBlackframes)
+                    {
+                        Console.WriteLine("Episode needs scanning: " + ep.id);
+                        ignoreDirectories.RemoveAll(x => x == ep.dir);
+                    }
+
+                }
+                else
+                {
+                    var items = db.GetNonPlexTimings(ep, true);
+
+                    if (items != null)
+                    {
+                        InsertTimings(ep, settings, false, true);
+                    }
+                }
+
+                ep.Save();
+            }
+        }
+
 
         public void CheckForNewPlexIntros()
         {
@@ -1471,7 +1581,7 @@ namespace plexCreditsDetect
                         {
                             Console.WriteLine("Episode needs scanning: " + item.episode.id);
 
-                            db.Insert(item.episode);
+                            item.episode.Save();
 
                             db.DeleteEpisodePlexTimings(item.episode);
                             db.InsertTiming(item.episode, item.segment, true);
@@ -1501,7 +1611,7 @@ namespace plexCreditsDetect
                     Console.WriteLine($"Example of a path that couldn't be found: {path}");
 
                     db.lastPlexIntroAdded = originalLastPlexIntroAdded;
-                    Program.Exit();
+                    Program.Exit(-1);
                 }
             } while (data.Any());
         }
