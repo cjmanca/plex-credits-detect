@@ -18,7 +18,7 @@ namespace plexCreditsDetect
         internal static SoundFingerprinting.Emy.FFmpegAudioService audioService = null;
         internal static List<string> ignoreDirectories = new List<string>();
 
-        private static readonly string[] allowedExtensions = new string[] { ".3g2", ".3gp", ".amv", ".asf", ".avi", ".flv", ".f4v", ".f4p", ".f4a", ".f4b", ".m4v", ".mkv", ".mov", ".qt", ".mp4", ".m4p", ".mpg", ".mp2", ".mpeg", ".mpe", ".mpv", ".m2v", ".mts", ".m2ts", ".ts", ".ogv", ".ogg", ".rm", ".rmvb", ".viv", ".vob", ".webm", ".wmv" };
+        private static readonly string[] allowedExtensions = new string[] { ".3g2", ".3gp", ".amv", ".asf", ".avi", ".flv", ".f4v", ".f4p", ".f4a", ".f4b", ".m4v", ".mkv", ".mov", ".qt", ".mp4", ".m4p", ".mpg", ".mp2", ".mpeg", ".mpe", ".mpv", ".m2v", ".mts", ".m2ts", ".ts", ".ogv", ".ogg", ".rm", ".rmvb", ".viv", ".vob", ".webm", ".wmv", ".divx", ".xvid", ".264", ".265", ".ogm" };
 
         int processed = 0;
         int processAttempts = 0;
@@ -1438,6 +1438,7 @@ namespace plexCreditsDetect
                 }
                 if (!IsVideoExtension(ep.fullPath))
                 {
+                    Console.WriteLine($"Invalid video extension: {ep.id} \n");
                     continue;
                 }
 
