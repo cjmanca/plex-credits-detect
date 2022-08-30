@@ -29,7 +29,7 @@ jobs:
     if: github.actor != 'cjmanca' || github.event_name != 'pull_request' 
     
     steps:
-      - uses: phish108/autotag-action@1.1.51
+      - uses: cjmanca/autotag-action@master
         id: tagger
         if: github.event_name != 'pull_request' 
         with:
