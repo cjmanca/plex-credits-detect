@@ -27,10 +27,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: phish108/autotag-action@1.1.51
+      - uses: phish108/autotag-action@1.1.47
         id: tagger
         if: github.event_name != 'pull_request' 
-        env:
+        with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           with-v: true
           release-branch: /.*/
