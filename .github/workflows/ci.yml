@@ -26,7 +26,7 @@ jobs:
     name: Push Docker image
     runs-on: ubuntu-latest
 
-    if: github.actor != 'cjmanca' || github.event_name != 'pull_request' 
+    if: github.actor != 'cjmanca' || github.event_name != 'pull_request'
     
     steps:
       - uses: cjmanca/autotag-action@master
