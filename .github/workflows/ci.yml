@@ -26,6 +26,8 @@ jobs:
     name: Push Docker image
     runs-on: ubuntu-latest
 
+    if: github.actor != 'cjmanca' || github.event_name != 'pull_request' 
+    
     steps:
       - uses: phish108/autotag-action@1.1.51
         id: tagger
