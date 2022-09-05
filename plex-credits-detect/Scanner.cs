@@ -130,7 +130,7 @@ namespace plexCreditsDetect
 
             if (trueValForNeedsScanning)
             {
-                var timings = db.GetNonPlexTimings(ep);
+                var timings = ep.nonPlexTimings;
 
                 if (timings == null)
                 {
@@ -601,6 +601,7 @@ namespace plexCreditsDetect
 
             if (!Directory.Exists(path))
             {
+                Console.WriteLine($"Directory doesn't exist: " + path);
                 db.ClearDetectionPendingForDirectory(path);
                 return;
             }
@@ -610,8 +611,9 @@ namespace plexCreditsDetect
                 settings = new Settings(path);
             }
 
-            if (settings.maximumMatches <= 0)
+            if ((settings.maximumMatches <= 0) && !settings.detectSilenceAfterCredits && !settings.detectBlackframes)
             {
+                Console.WriteLine($"Settings excludes this directory from detection: " + path);
                 db.ClearDetectionPendingForDirectory(path);
                 return;
             }
@@ -1450,8 +1452,17 @@ namespace plexCreditsDetect
                     settings = new Settings(ep.fullDirPath);
                 }
 
+                bool needsScanning = CheckIfFileNeedsScanning(ep, settings, true);
 
-                if (CheckIfFileNeedsScanning(ep, settings, true))
+                var items = db.GetNonPlexTimings(ep);
+
+                if (items != null)
+                {
+                    items.ForEach(x => ep.segments.allSegments.Add(x));
+                    InsertTimings(ep, settings, false, true);
+                }
+
+                if (needsScanning)
                 {
 
                     bool doMatching = (settings.useAudio || settings.useVideo) && settings.maximumMatches > 0 && ep.needsScanning;
@@ -1477,15 +1488,6 @@ namespace plexCreditsDetect
                         ignoreDirectories.RemoveAll(x => x == ep.dir);
                     }
 
-                }
-                else
-                {
-                    var items = db.GetNonPlexTimings(ep, true);
-
-                    if (items != null)
-                    {
-                        InsertTimings(ep, settings, false, true);
-                    }
                 }
 
                 ep.Save();
@@ -1537,6 +1539,8 @@ namespace plexCreditsDetect
                         continue;
                     }
 
+                    item.episode.PopulateFromPrivateDB();
+
                     path = item.episode.fullPath;
 
                     if (!item.episode.Exists)
@@ -1557,9 +1561,19 @@ namespace plexCreditsDetect
                     }
 
 
-                    if (CheckIfFileNeedsScanning(item.episode, settings, true))
-                    {
+                    bool needsScanning = CheckIfFileNeedsScanning(item.episode, settings, true);
 
+
+                    var items = item.episode.nonPlexTimings;
+                    if (items != null) // reinsert existing even if scanning is needed, so something is there until the scanning is done
+                    {
+                        items.ForEach(x => item.episode.segments.allSegments.Add(x));
+                        InsertTimings(item.episode, settings, false, true);
+                    }
+
+
+                    if (needsScanning)
+                    {
                         bool doMatching = (settings.useAudio || settings.useVideo) && settings.maximumMatches > 0 && item.episode.needsScanning;
                         bool doSilence = settings.detectSilenceAfterCredits && item.episode.needsSilenceScanning;
                         bool doBlackframes = settings.detectBlackframes && (!settings.blackframeOnlyMovies || item.episode.isMovie) && item.episode.needsBlackframeScanning;
@@ -1577,30 +1591,23 @@ namespace plexCreditsDetect
                             item.episode.BlackframeDetectionPending = true;
                         }
 
+                        item.episode.Save();
+
                         if (doMatching || doSilence || doBlackframes)
                         {
                             Console.WriteLine("Episode needs scanning: " + item.episode.id);
-
-                            item.episode.Save();
 
                             db.DeleteEpisodePlexTimings(item.episode);
                             db.InsertTiming(item.episode, item.segment, true);
 
                             ignoreDirectories.RemoveAll(x => x == item.episode.dir);
                         }
-
                     }
                     else
                     {
-                        //Console.WriteLine($"Updating timings for episode: {item.episode.fullPath}");
-
-                        var items = db.GetNonPlexTimings(item.episode, true);
-
-                        if (items != null)
-                        {
-                            InsertTimings(item.episode, settings, false, true);
-                        }
+                        item.episode.Save();
                     }
+
 
                     db.lastPlexIntroAdded = item.created;
                 }

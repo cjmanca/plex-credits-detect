@@ -376,7 +376,22 @@ namespace plexCreditsDetect
             }
         }
 
-        public bool Exists { get; set; } = false;
+        bool? _Exists = null;
+        public bool Exists
+        {
+            get
+            {
+                if (!_Exists.HasValue)
+                {
+                    _Exists = File.Exists(fullPath) || Directory.Exists(fullPath);
+                }
+                return _Exists.Value;
+            }
+            set
+            {
+                _Exists = value;
+            }
+        }
 
         bool _fullPath_set = false;
         string _fullPath = "";
@@ -514,6 +529,30 @@ namespace plexCreditsDetect
                 }
             }
         }
+
+        bool checkedForNonPlexTimings = false;
+        List<Segment> _nonPlexTimings = null;
+        public List<Segment> nonPlexTimings
+        {
+            get
+            {
+                if (!checkedForNonPlexTimings)
+                {
+                    _nonPlexTimings = Scanner.db.GetNonPlexTimings(this);
+                    checkedForNonPlexTimings = true;
+                }
+                return _nonPlexTimings;
+            }
+            set
+            {
+                _nonPlexTimings = value;
+                if (_nonPlexTimings != null)
+                {
+                    checkedForNonPlexTimings = true;
+                }
+            }
+        }
+
 
         double? _duration = null;
         public double duration
