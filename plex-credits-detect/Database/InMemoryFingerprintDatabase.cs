@@ -873,14 +873,21 @@ namespace plexCreditsDetect.Database
             });
         }
 
-        public List<Segment> GetNonPlexTimings(Episode ep, bool addToEpisode = false)
+        public List<Segment> GetNonPlexTimings(Episode ep)
         {
             List<Segment> segments = new List<Segment>();
+
+            string id = ep.id;
+
+            if (ep.idInLocalDB != "")
+            {
+                id = ep.idInLocalDB;
+            }
 
             using (var result = ExecuteDBQuery("SELECT time_offset, end_time_offset, isCredits, isSilence, isBlackframes " +
                 " FROM ScannedMedia_Timings WHERE ScannedMedia_id = @ScannedMedia_id AND is_plex_intro = @is_plex_intro;", new Dictionary<string, object>()
             {
-                { "ScannedMedia_id", Program.GetDBStylePath(ep.id) },
+                { "ScannedMedia_id", Program.GetDBStylePath(id) },
                 { "is_plex_intro", false }
             }))
             {
@@ -902,11 +909,6 @@ namespace plexCreditsDetect.Database
                     seg.isBlackframes = result.Get<bool>("isBlackframes");
 
                     segments.Add(seg);
-
-                    if (addToEpisode)
-                    {
-                        ep.segments.allSegments.Add(seg);
-                    }
                 }
 
                 return segments;
