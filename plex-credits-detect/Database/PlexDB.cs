@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
 using System.Linq;
+using System.Reflection.Metadata;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -344,11 +345,26 @@ namespace plexCreditsDetect.Database
                     return null;
                 }
 
+                string sourceID = ep.id;
+
                 ep.id = result.Get<string>("file");
                 ep.metadata_item_id = metadata_item_id;
                 ep.InPlexDB = true;
 
                 ep.Validate();
+
+                if (ep.didPopulateFromLocal && sourceID.Length > 1 && sourceID != ep.id) // episode originally populated from local DB, and file name/location changed
+                {
+                    ep.EpisodeNameChanged = true;
+
+                    if (ep.FileSizeOnDisk != ep.FileSizeInDB) // if both name and size changed, force redetect regardless of settings
+                    {
+                        ep.DetectionPending = true;
+                        ep.BlackframeDetectionPending = true;
+                        ep.SilenceDetectionPending = true;
+                    }
+                    ep.Save();
+                }
 
                 return ep;
             }

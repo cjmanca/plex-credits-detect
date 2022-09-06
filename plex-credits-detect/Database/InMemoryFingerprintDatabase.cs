@@ -8,6 +8,7 @@ using System.Text;
 using SoundFingerprinting;
 using System.Data;
 using Spreads.DataTypes;
+using Spreads;
 
 namespace plexCreditsDetect.Database
 {
@@ -614,11 +615,24 @@ namespace plexCreditsDetect.Database
                 {
                     Episode plexEp = Scanner.plexDB.GetEpisodeForMetaID(metadata_id); // make sure we have the right id from the plex DB
                     ep.id = plexEp.id;
-                    ep.EpisodeNameChanged = true;
-                    ep.Validate();
-                    if (ep.Exists)
+                    if (sourceID != ep.id)
                     {
+                        ep.EpisodeNameChanged = true;
+                        ep.Validate();
+
+                        if (ep.FileSizeOnDisk != ep.FileSizeInDB) // if both name and size changed, force redetect regardless of settings
+                        {
+                            ep.DetectionPending = true;
+                            ep.BlackframeDetectionPending = true;
+                            ep.SilenceDetectionPending = true;
+                        }
+
                         ep.Save();
+
+                        if (!ep.Exists)
+                        {
+                            ep.Delete();
+                        }
                     }
                 }
 
