@@ -67,8 +67,6 @@ namespace plexCreditsDetect
 
         internal bool CheckIfFileNeedsScanning(Episode ep, Settings settings, bool insertCheck = false)
         {
-            bool trueValForNeedsScanning = settings.maximumMatches > 0 && (settings.useVideo || settings.useAudio) && !ep.isMovie;
-            bool trueValForNeedsSilenceScanning = settings.detectSilenceAfterCredits;
 
             if (!ep.Exists) // can't scan something that doesn't exist
             {
@@ -86,7 +84,17 @@ namespace plexCreditsDetect
                 return false;
             }
 
+            bool trueValForNeedsScanning = settings.maximumMatches > 0 && (settings.useVideo || settings.useAudio) && !ep.isMovie;
+            bool trueValForNeedsSilenceScanning = settings.detectSilenceAfterCredits;
             bool trueValForNeedsBlackframeScanning = settings.detectBlackframes && (!settings.blackframeOnlyMovies || ep.isMovie);
+
+            if ((ep.DetectionPending && trueValForNeedsScanning) || (ep.SilenceDetectionPending && trueValForNeedsSilenceScanning) || (ep.BlackframeDetectionPending && trueValForNeedsBlackframeScanning))
+            {
+                ep.needsScanning = trueValForNeedsScanning;
+                ep.needsSilenceScanning = trueValForNeedsSilenceScanning;
+                ep.needsBlackframeScanning = trueValForNeedsBlackframeScanning;
+                return true;
+            }
 
             if (settings.forceRedetect)
             {
@@ -505,15 +513,17 @@ namespace plexCreditsDetect
                 if (!doingReinsert)
                 {
                     long plex_metadata_item_id = Scanner.plexDB.GetMetadataID(ep);
-                    if (plex_metadata_item_id != ep.metadata_item_id)
-                    {
-                        ep.metadata_item_id = plex_metadata_item_id;
-                    }
 
                     if (plex_metadata_item_id < 0)
                     {
                         ep.Delete();
                         return;
+                    }
+
+                    if (plex_metadata_item_id != ep.metadata_item_id)
+                    {
+                        ep.metadata_item_id = plex_metadata_item_id;
+                        ep.Save();
                     }
                 }
 
