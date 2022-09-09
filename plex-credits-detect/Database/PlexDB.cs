@@ -1,5 +1,4 @@
-﻿using Spreads.DataTypes;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
 using System.Linq;

@@ -7,8 +7,6 @@ using System.Linq;
 using System.Text;
 using SoundFingerprinting;
 using System.Data;
-using Spreads.DataTypes;
-using Spreads;
 
 namespace plexCreditsDetect.Database
 {
