@@ -54,6 +54,7 @@ namespace plexCreditsDetect
             public override void WriteLine(string message)
             {
                 base.WriteLine(message);
+                Flush();
                 _logger.Rotate();
             }
         }
@@ -76,6 +77,7 @@ namespace plexCreditsDetect
             {
                 try
                 {
+                    _listener.Flush();
                     _listener.Close();
                 }
                 catch { }
