@@ -131,6 +131,11 @@ namespace plexCreditsDetect
             if (ex == null)
                 return string.Empty;
 
+            if (ex.InnerException == null)
+            {
+                return ex.ToString();
+            }
+
             return $"{ex}, Inner exception: {UnwrapExceptionMessages(ex.InnerException)} ";
         }
 
