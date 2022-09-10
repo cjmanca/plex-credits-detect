@@ -54,6 +54,7 @@ namespace plexCreditsDetect
             public override void WriteLine(string message)
             {
                 base.WriteLine(message);
+                Flush();
                 _logger.Rotate();
             }
         }
@@ -76,6 +77,7 @@ namespace plexCreditsDetect
             {
                 try
                 {
+                    _listener.Flush();
                     _listener.Close();
                 }
                 catch { }
@@ -128,6 +130,11 @@ namespace plexCreditsDetect
         {
             if (ex == null)
                 return string.Empty;
+
+            if (ex.InnerException == null)
+            {
+                return ex.ToString();
+            }
 
             return $"{ex}, Inner exception: {UnwrapExceptionMessages(ex.InnerException)} ";
         }
