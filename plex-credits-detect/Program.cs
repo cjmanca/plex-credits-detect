@@ -140,7 +140,7 @@ namespace plexCreditsDetect
                         foreach (var item in dirs)
                         {
                             count++;
-                            Console.WriteLine($"");
+                            Logger.log.Info($"");
                             Logger.log.Info($"Processing directory {count} of {dirs.Count}: {item}");
                             scanner.ScanDirectory(item);
                         }
