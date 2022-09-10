@@ -310,7 +310,7 @@ namespace plexCreditsDetect
                 }
                 catch (Exception e)
                 {
-                    Logger.log.Error("FingerprintFile Exception: ", e);
+                    Logger.log.Error(e);
                 }
             }
         }
