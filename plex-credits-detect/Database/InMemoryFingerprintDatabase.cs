@@ -7,8 +7,6 @@ using System.Linq;
 using System.Text;
 using SoundFingerprinting;
 using System.Data;
-using Spreads.DataTypes;
-using Spreads;
 
 namespace plexCreditsDetect.Database
 {
@@ -104,7 +102,7 @@ namespace plexCreditsDetect.Database
                 {
                     if ((SQLiteErrorCode)e.ErrorCode != SQLiteErrorCode.Busy)
                     {
-                        Console.WriteLine($"InMemoryFingerprintDatabase LoadDatabase SQLite error code {e.ErrorCode}: {e.Message}");
+                        Logger.log.Error($"InMemoryFingerprintDatabase LoadDatabase SQLite error code {e.ErrorCode}: {e.Message}", e);
                         Program.Exit(-1);
                     }
                     Thread.Sleep(10);
@@ -215,7 +213,7 @@ namespace plexCreditsDetect.Database
 
             if (GetIntData("dbv4migrationdone") < 1)
             {
-                Console.WriteLine("Starting DB migration. This could take several minutes. Please wait...");
+                Logger.log.Info("Starting DB migration. This could take several minutes. Please wait...");
 
                 bool didSomething = true;
 
@@ -229,7 +227,7 @@ namespace plexCreditsDetect.Database
                         while (didSomething)
                         {
                             didSomething = false;
-                            Console.WriteLine($"Total items to migrate: {count - processed}");
+                            Logger.log.Info($"Total items to migrate: {count - processed}");
 
                             using (var result = ExecuteDBQuery("SELECT `id`, `dir` FROM ScannedMedia WHERE metadata_item_id = -2 LIMIT 100;"))
                             { 
@@ -394,7 +392,10 @@ namespace plexCreditsDetect.Database
                     {
                         if (count >= 2 + recursionCount)
                         {
-                            Console.WriteLine($"plex-credits-detect Database ExecuteDBCommand Database has been locked for a long time. Attempting to re-connect.");
+                            Logger.log.Error($"plex-credits-detect Database ExecuteDBCommand Database has been locked for a long time. Attempting to re-connect.");
+
+                            sqlite_cmd.Dispose();
+
                             CloseDatabase();
                             LoadDatabase(databasePath);
                             return ExecuteDBCommand(cmd, p, recursionCount + 1);
@@ -402,15 +403,15 @@ namespace plexCreditsDetect.Database
 
                         if ((SQLiteErrorCode)ex.ErrorCode != SQLiteErrorCode.Busy)
                         {
-                            Console.WriteLine("plex-credits-detect Database.ExecuteDBCommand exception: " + ex.Message + "" +
+                            Logger.log.Error("plex-credits-detect Database.ExecuteDBCommand exception: " + ex.Message + "" +
                                 " while executing SQL: " + cmd);
                             if (p != null && p.Count > 0)
                             {
-                                Console.WriteLine("With data: ");
+                                Logger.log.Error("With data: ");
 
                                 foreach (var x in p)
                                 {
-                                    Console.WriteLine($"{x.Key} = {x.Value}");
+                                    Logger.log.Error($"{x.Key} = {x.Value}");
                                 }
                             }
                             Program.Exit(-1);
@@ -426,7 +427,7 @@ namespace plexCreditsDetect.Database
         {
             if (recursionCount > 20)
             {
-                Console.WriteLine($"plex-credits-detect Database not accessible. Retry count exceeded. Exiting.");
+                Logger.log.Error($"plex-credits-detect Database not accessible. Retry count exceeded. Exiting.");
                 Program.Exit(-1);
                 return null;
             }
@@ -435,6 +436,7 @@ namespace plexCreditsDetect.Database
             var sqlite_cmd = sqlite_conn.CreateCommand();
             sqlite_cmd.CommandText = cmd;
             sqlite_cmd.CommandType = System.Data.CommandType.Text;
+            ret.command = sqlite_cmd;
 
             if (p != null)
             {
@@ -463,36 +465,34 @@ namespace plexCreditsDetect.Database
                 }
                 catch (SQLiteException ex)
                 {
+                    if ((SQLiteErrorCode)ex.ErrorCode != SQLiteErrorCode.Busy)
+                    {
+                        sqlite_cmd.Dispose();
+
+                        Logger.log.Error("plex-credits-detect Database.ExecuteDBQuery exception: " + ex.Message + "" +
+                            " while executing SQL: " + cmd);
+                        if (p != null && p.Count > 0)
+                        {
+                            Logger.log.Error("With data: ");
+
+                            foreach (var x in p)
+                            {
+                                Logger.log.Error($"{x.Key} = {x.Value}");
+                            }
+                        }
+                        Program.Exit(-1);
+                        return null;
+                    }
+
                     if (count >= 2 + recursionCount)
                     {
-                        Console.WriteLine($"plex-credits-detect Database ExecuteDBQuery Database has been locked for a long time. Attempting to re-connect.");
+                        Logger.log.Error($"plex-credits-detect Database ExecuteDBQuery Database has been locked for a long time. Attempting to re-connect.");
 
-                        sqlite_cmd.Reset();
                         sqlite_cmd.Dispose();
 
                         CloseDatabase();
                         LoadDatabase(databasePath);
                         return ExecuteDBQuery(cmd, p, recursionCount + 1);
-                    }
-
-                    if ((SQLiteErrorCode)ex.ErrorCode != SQLiteErrorCode.Busy)
-                    {
-                        sqlite_cmd.Reset();
-                        sqlite_cmd.Dispose();
-
-                        Console.WriteLine("plex-credits-detect Database.ExecuteDBQuery exception: " + ex.Message + "" +
-                            " while executing SQL: " + cmd);
-                        if (p != null && p.Count > 0)
-                        {
-                            Console.WriteLine("With data: ");
-
-                            foreach (var x in p)
-                            {
-                                Console.WriteLine($"{x.Key} = {x.Value}");
-                            }
-                        }
-                        Program.Exit(-1);
-                        return null;
                     }
                     Thread.Sleep(10);
                 }

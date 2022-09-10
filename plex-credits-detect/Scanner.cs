@@ -39,7 +39,7 @@ namespace plexCreditsDetect
 
             if (!ep.InPlexDB)
             {
-                //Console.WriteLine($"{ep.id}: Metadata not found in plex db. Removing.");
+                Logger.log.Debug($"{ep.id}: Metadata not found in plex db. Removing.");
                 if (ep.InPrivateDB)
                 {
                     ep.Delete();
@@ -52,7 +52,7 @@ namespace plexCreditsDetect
             if (!ep.InPrivateDB)
             {
                 // metadata was found in plex db, so update our db with the episode
-                //Console.WriteLine($"{ep.id}: Adding to local db.");
+                Logger.log.Debug($"{ep.id}: Adding to local db.");
                 ep.DetectionPending = true;
 
                 if (allowInsert)
@@ -273,7 +273,7 @@ namespace plexCreditsDetect
 
                     var times = GetTimings(ep, settings, isCredits, seg);
 
-                    Console.WriteLine($"Fingerprinting: {ep.id} ({TimeSpan.FromSeconds(times.start):g} - {TimeSpan.FromSeconds(times.end):g})");
+                    Logger.log.Info($"Fingerprinting: {ep.id} ({TimeSpan.FromSeconds(times.start):g} - {TimeSpan.FromSeconds(times.end):g})");
 
                     string creditSnippet = isCredits ? "credits" : "intro";
                     string tempFile = "";
@@ -310,7 +310,7 @@ namespace plexCreditsDetect
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine("FingerprintFile Exception: " + e.ToString());
+                    Logger.log.Error("FingerprintFile Exception: ", e);
                 }
             }
         }
@@ -379,7 +379,7 @@ namespace plexCreditsDetect
                 if (firstEntry)
                 {
                     firstEntry = false;
-                    Console.WriteLine("");
+                    Logger.log.Info("");
 
                     // unfortunately, it doesn't seem like the plex server monitors changes to the activities table
                     // so this doesn't work as I had hoped
@@ -429,8 +429,8 @@ namespace plexCreditsDetect
 
                 if (!wroteHeader)
                 {
-                    Console.WriteLine("");
-                    Console.WriteLine($"Detecting: {ep.id}");
+                    Logger.log.Info("");
+                    Logger.log.Info($"Detecting: {ep.id}");
                     processAttempts++;
                     wroteHeader = true;
                 }
@@ -499,7 +499,7 @@ namespace plexCreditsDetect
             }
             catch (Exception e)
             {
-                Console.WriteLine("DetectSingleEpisode Exception: " + e.ToString());
+                Logger.log.Error(e);
             }
 
             return 0;
@@ -595,7 +595,7 @@ namespace plexCreditsDetect
             }
             catch (Exception e)
             {
-                Console.WriteLine("InsertTimings Exception: " + e.ToString());
+                Logger.log.Error(e);
             }
 
             processed++;
@@ -611,7 +611,7 @@ namespace plexCreditsDetect
 
             if (!Directory.Exists(path))
             {
-                Console.WriteLine($"Directory doesn't exist: " + path);
+                Logger.log.Error($"Directory doesn't exist: " + path);
                 db.ClearDetectionPendingForDirectory(path);
                 return;
             }
@@ -623,7 +623,7 @@ namespace plexCreditsDetect
 
             if ((settings.maximumMatches <= 0) && !settings.detectSilenceAfterCredits && !settings.detectBlackframes)
             {
-                Console.WriteLine($"Settings excludes this directory from detection: " + path);
+                Logger.log.Debug($"Settings excludes this directory from detection: " + path);
                 db.ClearDetectionPendingForDirectory(path);
                 return;
             }
@@ -912,24 +912,24 @@ namespace plexCreditsDetect
                     if (processed <= 0)
                     {
                         path = Program.getRelativeDirectory(Program.PathCombine(path, "tmp"));
-                        //Console.WriteLine($"No intros/credits detected in scanned files in {path}");
+                        //Logger.log.Debug($"No intros/credits detected in scanned files in {path}");
                         List<Episode> pending = db.GetPendingEpisodesForSeason(path);
 
                         if (pending != null)
                         {
-                            Console.WriteLine($"List: ");
+                            Logger.log.Debug($"List: ");
                             foreach (var item in pending)
                             {
                                 Console.Write($"{item.id}: ");
                                 if (plexDB.GetMetadataID(item) < 0) // pending item is no longer in the plex DB. Clean up.
                                 {
-                                    Console.WriteLine($" Metadata not found in plex db. Removing.");
+                                    Logger.log.Debug($" Metadata not found in plex db. Removing.");
                                     db.DeleteEpisodeTimings(item);
                                     db.DeleteEpisode(item);
                                 }
                                 else
                                 {
-                                    Console.WriteLine(" Still in Plex DB but unable to process. Ignoring until next restart.");
+                                    Logger.log.Error(" Still in Plex DB but unable to process. Ignoring until next restart.");
                                 }
                             }
                         }
@@ -940,7 +940,7 @@ namespace plexCreditsDetect
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine("ScanDirectory Exception (3): " + e.ToString());
+                    Logger.log.Error(e);
                 }
                 */
 
@@ -954,8 +954,8 @@ namespace plexCreditsDetect
 
                 if (processAttempts > 0)
                 {
-                    Console.WriteLine("");
-                    Console.WriteLine($"Detection took {sw.Elapsed:g}");
+                    Logger.log.Info("");
+                    Logger.log.Info($"Detection took {sw.Elapsed:g}");
                 }
             }
 
@@ -970,8 +970,8 @@ namespace plexCreditsDetect
             {
                 if (!wroteHeader)
                 {
-                    Console.WriteLine("");
-                    Console.WriteLine($"Detecting: {ep.id}");
+                    Logger.log.Info("");
+                    Logger.log.Info($"Detecting: {ep.id}");
                     processAttempts++;
                     wroteHeader = true;
                 }
@@ -986,8 +986,8 @@ namespace plexCreditsDetect
             {
                 if (!wroteHeader)
                 {
-                    Console.WriteLine("");
-                    Console.WriteLine($"Detecting: {ep.id}");
+                    Logger.log.Info("");
+                    Logger.log.Info($"Detecting: {ep.id}");
                     processAttempts++;
                     wroteHeader = true;
                 }
@@ -1230,7 +1230,7 @@ namespace plexCreditsDetect
             {
                 if (resultEntry.duration >= settings.minimumMatchSeconds)
                 {
-                    Console.WriteLine($"{pre} from {resultEntry.start:0.00} to {resultEntry.end:0.00}. Duration: {resultEntry.duration:0.00}.");
+                    Logger.log.Info($"{pre} from {resultEntry.start:0.00} to {resultEntry.end:0.00}. Duration: {resultEntry.duration:0.00}.");
 
                 }
             }
@@ -1242,13 +1242,13 @@ namespace plexCreditsDetect
             {
                 if (resultEntry.DiscreteTrackCoverageLength >= 20)
                 {
-                    Console.WriteLine($"Matched {resultEntry.Track.Id} on media type {mediaType} query, confidence {resultEntry.Confidence:0.00}. Match length {resultEntry.TrackCoverageWithPermittedGapsLength:0.00}.");
-                    Console.WriteLine($"Track start {resultEntry.TrackMatchStartsAt:0.00}");
-                    Console.WriteLine($"Query start {resultEntry.QueryMatchStartsAt:0.00}");
-                    Console.WriteLine($"Track discrete coverage length {resultEntry.Coverage.TrackDiscreteCoverageLength}, with detected {resultEntry.Coverage.TrackGaps.Count()} gaps of length {resultEntry.Coverage.TrackGapsCoverageLength}");
-                    Console.WriteLine($"Query discrete coverage length {resultEntry.Coverage.QueryDiscreteCoverageLength}, with detected {resultEntry.Coverage.QueryGaps.Count()} gaps");
-                    
-                    Console.WriteLine("\n");
+                    Logger.log.Info($"Matched {resultEntry.Track.Id} on media type {mediaType} query, confidence {resultEntry.Confidence:0.00}. Match length {resultEntry.TrackCoverageWithPermittedGapsLength:0.00}.");
+                    Logger.log.Info($"Track start {resultEntry.TrackMatchStartsAt:0.00}");
+                    Logger.log.Info($"Query start {resultEntry.QueryMatchStartsAt:0.00}");
+                    Logger.log.Info($"Track discrete coverage length {resultEntry.Coverage.TrackDiscreteCoverageLength}, with detected {resultEntry.Coverage.TrackGaps.Count()} gaps of length {resultEntry.Coverage.TrackGapsCoverageLength}");
+                    Logger.log.Info($"Query discrete coverage length {resultEntry.Coverage.QueryDiscreteCoverageLength}, with detected {resultEntry.Coverage.QueryGaps.Count()} gaps");
+
+                    Logger.log.Info("\n");
                 }
             }
         }
@@ -1290,7 +1290,7 @@ namespace plexCreditsDetect
 
                             if ((settings.recheckUndetectedOnStartup && ep.needsScanning) || (settings.recheckSilenceOnStartup && ep.needsSilenceScanning) || (settings.recheckBlackframesOnStartup && ep.needsBlackframeScanning))
                             {
-                                Console.WriteLine("Episode needs scanning: " + ep.id);
+                                Logger.log.Info("Episode needs scanning: " + ep.id);
                                 ep.Save();
                             }
                         }
@@ -1306,7 +1306,7 @@ namespace plexCreditsDetect
             }
             catch (Exception e)
             {
-                Console.WriteLine("CheckDirectory Exception: " + e.ToString());
+                Logger.log.Error(e);
             }
         }
 
@@ -1343,7 +1343,7 @@ namespace plexCreditsDetect
             }
             catch (Exception e)
             {
-                Console.WriteLine("CheckDirectory Exception: " + e.ToString());
+                Logger.log.Error(e);
             }
 
         }
@@ -1360,7 +1360,7 @@ namespace plexCreditsDetect
 
                 if (data.Count > 0)
                 {
-                    Console.WriteLine($"Found changed directories: {data.Count} \n");
+                    Logger.log.Info($"Found changed directories: {data.Count} \n");
                 }
 
                 foreach (var item in data)
@@ -1405,7 +1405,7 @@ namespace plexCreditsDetect
 
                         if (doMatching || settings.detectSilenceAfterCredits || doBlackframes)
                         {
-                            Console.WriteLine("Directory needs scanning: " + path);
+                            Logger.log.Info("Directory needs scanning: " + path);
 
                             ep.fullPath = ep.fullDirPath;
 
@@ -1437,7 +1437,7 @@ namespace plexCreditsDetect
 
             if (notInLocal.Count > 0)
             {
-                Console.WriteLine($"Found changed metadata: {notInLocal.Count} \n");
+                Logger.log.Info($"Found changed metadata: {notInLocal.Count} \n");
             }
 
             foreach (Episode ep in notInLocal)
@@ -1450,7 +1450,7 @@ namespace plexCreditsDetect
                 }
                 if (!IsVideoExtension(ep.fullPath))
                 {
-                    Console.WriteLine($"Invalid video extension: {ep.id} \n");
+                    Logger.log.Error($"Unknown video extension: {ep.id} \n");
                     continue;
                 }
 
@@ -1494,7 +1494,7 @@ namespace plexCreditsDetect
 
                     if (doMatching || doSilence || doBlackframes)
                     {
-                        Console.WriteLine("Episode needs scanning: " + ep.id);
+                        Logger.log.Info("Episode needs scanning: " + ep.id);
                         ignoreDirectories.RemoveAll(x => x == ep.dir);
                     }
 
@@ -1526,14 +1526,14 @@ namespace plexCreditsDetect
                 {
                     if (firstTime)
                     {
-                        Console.WriteLine("Data null!");
+                        Logger.log.Error("Data null!");
                     }
                     return;
                 }
 
                 firstTime = false;
 
-                Console.WriteLine($"Found new plex intros: {data.Count} \n");
+                Logger.log.Info($"Found new plex intros: {data.Count} \n");
 
                 int i = 0;
                 int count = data.Count;
@@ -1544,7 +1544,7 @@ namespace plexCreditsDetect
                 {
                     if (item.episode == null)
                     {
-                        Console.WriteLine("Episode null: " + item.metadata_item_id);
+                        Logger.log.Error("Episode null: " + item.metadata_item_id);
                         db.lastPlexIntroAdded = item.created;
                         continue;
                     }
@@ -1605,7 +1605,7 @@ namespace plexCreditsDetect
 
                         if (doMatching || doSilence || doBlackframes)
                         {
-                            Console.WriteLine("Episode needs scanning: " + item.episode.id);
+                            Logger.log.Info("Episode needs scanning: " + item.episode.id);
 
                             db.DeleteEpisodePlexTimings(item.episode);
                             db.InsertTiming(item.episode, item.segment, true);
@@ -1624,8 +1624,8 @@ namespace plexCreditsDetect
 
                 if (firstTime && i == count)
                 {
-                    Console.WriteLine("No episodes could be found! Please check your media path mappings");
-                    Console.WriteLine($"Example of a path that couldn't be found: {path}");
+                    Logger.log.Error("No episodes could be found! Please check your media path mappings");
+                    Logger.log.Error($"Example of a path that couldn't be found: {path}");
 
                     db.lastPlexIntroAdded = originalLastPlexIntroAdded;
                     Program.Exit(-1);

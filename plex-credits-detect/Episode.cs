@@ -1,5 +1,4 @@
 ﻿using plexCreditsDetect.Database;
-using Spreads.DataTypes;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -641,7 +640,7 @@ namespace plexCreditsDetect
                     catch (Exception e) // Issue #24: a file that exists but with an invalid LastWriteTimeUtc. Possible filesystem corruption, ignore the offending file.
                     {
                         Exists = false;
-                        Console.WriteLine("File found with an invalid LastWriteTimeUtc index. Ignoring: " + p);
+                        Logger.log.Error("File found with an invalid LastWriteTimeUtc index. Ignoring: " + p);
                     }
                 }
             }

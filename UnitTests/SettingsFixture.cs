@@ -24,7 +24,7 @@ namespace plexCreditsDetect.Tests
             File.Delete(tmpFilePath);
             Directory.CreateDirectory(tmpFilePath);
 
-            settingsDict.Add(Path.GetFullPath(settings.globalSettingsPath + Path.DirectorySeparatorChar), "" +
+            settingsDict.Add(Path.GetFullPath(Settings.globalSettingsPath + Path.DirectorySeparatorChar), "" +
                 "[default]" + Environment.NewLine +
                 "introStart = 0.1" + Environment.NewLine +
                 "introEnd = 0.9" + Environment.NewLine +

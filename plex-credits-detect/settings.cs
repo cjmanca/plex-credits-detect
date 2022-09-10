@@ -13,7 +13,7 @@ namespace plexCreditsDetect
     public class Settings : ICloneable
     {
         public string currentlyLoadedSettingsPath = "";
-        public string globalSettingsPath => Program.PathCombine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "plex-credits-detect");
+        public static string globalSettingsPath => Program.PathCombine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "plex-credits-detect");
 
         public static Dictionary<string, string> paths = new Dictionary<string, string>();
         public static Dictionary<string, string> pathsPlexIndexed = new Dictionary<string, string>();
@@ -263,11 +263,11 @@ namespace plexCreditsDetect
             if (anyMissingGlobalIniSettings)
             {
                 anyMissingGlobalIniSettings = false;
-                
-                Console.WriteLine("");
-                Console.WriteLine("New or missing settings have been added to your global ini. Consult github for information on these settings:");
-                Console.WriteLine("https://github.com/cjmanca/plex-credits-detect");
-                Console.WriteLine("");
+
+                Logger.log.Info("");
+                Logger.log.Info("New or missing settings have been added to your global ini. Consult github for information on these settings:");
+                Logger.log.Info("https://github.com/cjmanca/plex-credits-detect");
+                Logger.log.Info("");
 
                 File.WriteAllText(iniPath, data.ToString(), encoding);
 
@@ -340,7 +340,7 @@ namespace plexCreditsDetect
 
                         File.WriteAllText(Program.PathCombine(globalSettingsPath, "fingerprint.ini"), output, Encoding.UTF8);
 
-                        Console.WriteLine("Created default config file: " + Program.PathCombine(globalSettingsPath, "fingerprint.ini"));
+                        Logger.log.Info("Created default config file: " + Program.PathCombine(globalSettingsPath, "fingerprint.ini"));
 
                         Program.Exit();
                         return false;
@@ -348,20 +348,20 @@ namespace plexCreditsDetect
                 }
             }
 
-            Console.WriteLine("Loading global config file: " + Program.PathCombine(globalSettingsPath, "fingerprint.ini"));
+            Logger.log.Info("Loading global config file: " + Program.PathCombine(globalSettingsPath, "fingerprint.ini"));
 
             Load("", true);
 
             if (TempDirectoryPath == "")
             {
-                Console.WriteLine("TempDirectoryPath not set. Make sure TempDirectoryPath is an empty directory outside of your media paths.");
+                Logger.log.Error("TempDirectoryPath not set. Make sure TempDirectoryPath is an empty directory outside of your media paths.");
                 return false;
             }
 
             DirectoryInfo d = new DirectoryInfo(TempDirectoryPath);
             if (d.Parent == null)
             {
-                Console.WriteLine("TempDirectoryPath appears to be a directory root! This could result in unintended deletion when temp is cleared. Make sure TempDirectoryPath is an empty directory outside of your media paths.");
+                Logger.log.Error("TempDirectoryPath appears to be a directory root! This could result in unintended deletion when temp is cleared. Make sure TempDirectoryPath is an empty directory outside of your media paths.");
                 return false;
             }
 
@@ -369,19 +369,19 @@ namespace plexCreditsDetect
             {
                 if (p.Key == @"C:\path\this\tool\sees\to\library" || p.Value == @"C:\path\Plex\sees\to\library")
                 {
-                    Console.WriteLine("[directories] section not yet configured. Please remove the default example directory and add your own library paths.");
+                    Logger.log.Error("[directories] section not yet configured. Please remove the default example directory and add your own library paths.");
                     return false;
                 }
 
                 if (!Directory.Exists(p.Key))
                 {
-                    Console.WriteLine("[directories] path doesn't exist: " + p.Key);
+                    Logger.log.Error("[directories] path doesn't exist: " + p.Key);
                     return false;
                 }
 
                 if (p.Key.Contains(TempDirectoryPath) || TempDirectoryPath.Contains(p.Key))
                 {
-                    Console.WriteLine("TempDirectoryPath appears to be in your media paths! This could cause unintended issues. Make sure TempDirectoryPath is an empty directory outside of your media paths.");
+                    Logger.log.Error("TempDirectoryPath appears to be in your media paths! This could cause unintended issues. Make sure TempDirectoryPath is an empty directory outside of your media paths.");
                     return false;
                 }
 
@@ -453,8 +453,8 @@ namespace plexCreditsDetect
             {
                 data[section][key] = assign.ToString();
 
-                Console.WriteLine("");
-                Console.WriteLine($"!!! MISSING Ini key in global config file. Section: {section}, Key: {key}");
+                Logger.log.Info("");
+                Logger.log.Error($"!!! MISSING Ini key in global config file. Section: {section}, Key: {key}");
                 anyMissingGlobalIniSettings = true;
             }
 

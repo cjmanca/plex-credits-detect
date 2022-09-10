@@ -19,126 +19,147 @@ namespace plexCreditsDetect
 
         static void Main(string[] args)
         {
-            if (!settings.CheckGlobalSettingFile())
+            AppDomain.CurrentDomain.ProcessExit += CurrentDomain_ProcessExit;
+            try
             {
-                return;
-            }
+                ConsoleTraceListener consoleListener = new ConsoleTraceListener();
+                Trace.Listeners.Add(consoleListener);
 
-            Scanner.audioService = new FFmpegAudioService();
 
-            //Scanner.db = new LMDBFingerprintDatabase(settings.databasePath);
-            Scanner.plexDB.LoadDatabase(Settings.PlexDatabasePath);
-
-            foreach (var dir in Scanner.plexDB.RootDirectories)
-            {
-                if (!Settings.pathsPlexIndexed.ContainsKey(dir.Value.path))
+                if (!settings.CheckGlobalSettingFile())
                 {
-                    if (dir.Value.section_type <= 2) // 1 is movies, 2 is tv shows. No reason to try to detect other library types
+                    return;
+                }
+
+                Scanner.audioService = new FFmpegAudioService();
+
+                //Scanner.db = new LMDBFingerprintDatabase(settings.databasePath);
+                Scanner.plexDB.LoadDatabase(Settings.PlexDatabasePath);
+
+                foreach (var dir in Scanner.plexDB.RootDirectories)
+                {
+                    if (!Settings.pathsPlexIndexed.ContainsKey(dir.Value.path))
                     {
-                        Settings.paths[dir.Value.path] = dir.Value.path;
-                        Settings.pathsPlexIndexed[dir.Value.path] = dir.Value.path;
-                    }
-                }
-            }
-
-            Scanner.db = new InMemoryFingerprintDatabase(Settings.databasePath);
-
-
-            Scanner scanner = new Scanner();
-
-
-            if (Scanner.db.lastPlexIntroAdded == DateTime.MinValue)
-            {
-                Console.WriteLine("First time run detected. The first run can take a long time to build up the database from your plex database. It may appear to be frozen, but give it time.");
-            }
-
-            // Now detecting changes by monitoring Plex adding intros to the plex database.
-            // No longer need to scan/monitor file changes ourselves.
-            /*
-            foreach (var path in settings.paths)
-            {
-                watchers[path] = new FileSystemWatcher(path);
-                watchers[path].Path = path;
-                watchers[path].NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.DirectoryName | NotifyFilters.FileName;
-                watchers[path].Changed += File_Changed;
-                watchers[path].Created += File_Created;
-                watchers[path].Deleted += File_Deleted;
-                watchers[path].Renamed += File_Renamed;
-                watchers[path].IncludeSubdirectories = true;
-                watchers[path].InternalBufferSize = 64 * 1024;
-                watchers[path].Filter = "*.*";
-                watchers[path].EnableRaisingEvents = true;
-            }
-            */
-
-            if (settings.crawlDirectoriesOnStartup || settings.recheckUndetectedOnStartup || settings.recheckSilenceOnStartup || settings.recheckBlackframesOnStartup)
-            {
-                Console.WriteLine("Crawling library paths to find episodes that don't meet the desired credit and intro numbers");
-                foreach (var path in Settings.paths)
-                {
-                    scanner.CheckDirectory(path.Key);
-                }
-            }
-
-            if (!settings.monitorPlexIntros && !settings.monitorDirectoryChanges)
-            {
-                Console.WriteLine($"\nBoth monitorPlexIntros and monitorDirectoryChanges are turned off. Nothing will ever be found to process. Exiting.\n");
-                Exit(-1);
-                return;
-            }
-
-            
-
-            Console.WriteLine($"\nSyncing newly added episodes from plex...\n");
-
-            firstLoop = true;
-            while (true)
-            {
-                if (settings.monitorPlexIntros)
-                {
-                    scanner.CheckForNewPlexIntros();
-                }
-
-
-                if (settings.monitorDirectoryChanges)
-                {
-                    scanner.CheckForPlexNewMetadata();
-                    //scanner.CheckForPlexChangedDirectories();
-                }
-
-                if (firstLoop)
-                {
-                    Console.WriteLine($"\nCompiling list of pending directories...\n");
-                }
-
-                var dirs = Scanner.db.GetPendingDirectories();
-
-                if (firstLoop && (dirs == null || dirs.Count <= 0))
-                {
-                    Console.WriteLine($"\nNothing to do. Monitoring for changes.\n");
-                }
-
-                int count = 0;
-
-                if (dirs != null)
-                {
-                    dirs.Sort();
-                    foreach (var item in dirs)
-                    {
-                        count++;
-                        Console.WriteLine($"");
-                        Console.WriteLine($"Processing directory {count} of {dirs.Count}: {item}");
-                        scanner.ScanDirectory(item);
+                        if (dir.Value.section_type <= 2) // 1 is movies, 2 is tv shows. No reason to try to detect other library types
+                        {
+                            Settings.paths[dir.Value.path] = dir.Value.path;
+                            Settings.pathsPlexIndexed[dir.Value.path] = dir.Value.path;
+                        }
                     }
                 }
 
-                firstLoop = false;
+                Scanner.db = new InMemoryFingerprintDatabase(Settings.databasePath);
 
-                Thread.Sleep(60000);
+
+                Scanner scanner = new Scanner();
+
+
+                if (Scanner.db.lastPlexIntroAdded == DateTime.MinValue)
+                {
+                    Logger.log.Info("First time run detected. The first run can take a long time to build up the database from your plex database. It may appear to be frozen, but give it time.");
+                }
+
+                // Now detecting changes by monitoring Plex adding intros to the plex database.
+                // No longer need to scan/monitor file changes ourselves.
+                /*
+                foreach (var path in settings.paths)
+                {
+                    watchers[path] = new FileSystemWatcher(path);
+                    watchers[path].Path = path;
+                    watchers[path].NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.DirectoryName | NotifyFilters.FileName;
+                    watchers[path].Changed += File_Changed;
+                    watchers[path].Created += File_Created;
+                    watchers[path].Deleted += File_Deleted;
+                    watchers[path].Renamed += File_Renamed;
+                    watchers[path].IncludeSubdirectories = true;
+                    watchers[path].InternalBufferSize = 64 * 1024;
+                    watchers[path].Filter = "*.*";
+                    watchers[path].EnableRaisingEvents = true;
+                }
+                */
+
+                if (settings.crawlDirectoriesOnStartup || settings.recheckUndetectedOnStartup || settings.recheckSilenceOnStartup || settings.recheckBlackframesOnStartup)
+                {
+                    Logger.log.Info("Crawling library paths to find episodes that don't meet the desired credit and intro numbers");
+                    foreach (var path in Settings.paths)
+                    {
+                        scanner.CheckDirectory(path.Key);
+                    }
+                }
+
+                if (!settings.monitorPlexIntros && !settings.monitorDirectoryChanges)
+                {
+                    Logger.log.Info("");
+                    Logger.log.Info($"Both monitorPlexIntros and monitorDirectoryChanges are turned off. Nothing will ever be found to process. Exiting.");
+                    Exit(0);
+                    return;
+                }
+
+
+
+                Logger.log.Info("");
+                Logger.log.Info($"Syncing newly added episodes from plex...");
+                Logger.log.Info("");
+
+                firstLoop = true;
+                while (true)
+                {
+                    if (settings.monitorPlexIntros)
+                    {
+                        scanner.CheckForNewPlexIntros();
+                    }
+
+
+                    if (settings.monitorDirectoryChanges)
+                    {
+                        scanner.CheckForPlexNewMetadata();
+                        //scanner.CheckForPlexChangedDirectories();
+                    }
+
+                    if (firstLoop)
+                    {
+                        Logger.log.Info("");
+                        Logger.log.Info($"Compiling list of pending directories...");
+                        Logger.log.Info("");
+                    }
+
+                    var dirs = Scanner.db.GetPendingDirectories();
+
+                    if (firstLoop && (dirs == null || dirs.Count <= 0))
+                    {
+                        Logger.log.Info("");
+                        Logger.log.Info($"Nothing to do. Monitoring for changes.");
+                        Logger.log.Info("");
+                    }
+
+                    int count = 0;
+
+                    if (dirs != null)
+                    {
+                        dirs.Sort();
+                        foreach (var item in dirs)
+                        {
+                            count++;
+                            Logger.log.Info($"");
+                            Logger.log.Info($"Processing directory {count} of {dirs.Count}: {item}");
+                            scanner.ScanDirectory(item);
+                        }
+                    }
+
+                    firstLoop = false;
+
+                    Thread.Sleep(60000);
+                }
             }
+            finally
+            {
+                Cleanup();
+            }
+        }
 
-            Scanner.db.CloseDatabase();
-            Scanner.plexDB.CloseDatabase();
+        private static void CurrentDomain_ProcessExit(object sender, EventArgs e)
+        {
+            Cleanup();
         }
 
         private static void File_Renamed(object sender, RenamedEventArgs e)
@@ -308,8 +329,12 @@ namespace plexCreditsDetect
             return path;
         }
 
-        public static void Exit(int exitCode = 0)
+        public static void Cleanup()
         {
+            // make sure any readers we had open are definitely disposed
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+
             if (Scanner.db != null)
             {
                 Scanner.db.CloseDatabase();
@@ -318,6 +343,13 @@ namespace plexCreditsDetect
             {
                 Scanner.plexDB.CloseDatabase();
             }
+            Logger.log.CloseListener();
+
+            System.Data.SQLite.SQLiteConnection.ClearAllPools();
+        }
+        public static void Exit(int exitCode = 0)
+        {
+            Cleanup();
             Environment.Exit(exitCode);
         }
     }
