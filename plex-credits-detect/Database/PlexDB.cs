@@ -67,7 +67,7 @@ namespace plexCreditsDetect.Database
 
             if (!File.Exists(path))
             {
-                Console.WriteLine("PlexDB.LoadDatabase - Invalid database path");
+                Logger.log.Error("PlexDB.LoadDatabase - Invalid database path");
                 throw new ArgumentException("Invalid database path");
             }
             SQLiteConnectionStringBuilder sb = new SQLiteConnectionStringBuilder();
@@ -90,7 +90,7 @@ namespace plexCreditsDetect.Database
                 {
                     if ((SQLiteErrorCode)e.ErrorCode != SQLiteErrorCode.Busy)
                     {
-                        Console.WriteLine($"PlexDB LoadDatabase SQLite error code {e.ErrorCode}: {e.Message}");
+                        Logger.log.Error($"PlexDB LoadDatabase SQLite error code {e.ErrorCode}: {e.Message}", e);
                         Program.Exit(-1);
                     }
                     Thread.Sleep(10);
@@ -104,7 +104,7 @@ namespace plexCreditsDetect.Database
         {
             if (recursionCount > 20)
             {
-                Console.WriteLine($"PlexDB not accessible. Retry count exceeded. Exiting.");
+                Logger.log.Error($"PlexDB not accessible. Retry count exceeded. Exiting.");
                 Program.Exit(-1);
                 return -1;
             }
@@ -136,7 +136,7 @@ namespace plexCreditsDetect.Database
                     {
                         if (count >= 2 + recursionCount)
                         {
-                            Console.WriteLine($"PlexDB ExecuteDBCommand Database has been locked for a long time. Attempting to re-connect.");
+                            Logger.log.Error($"PlexDB ExecuteDBCommand Database has been locked for a long time. Attempting to re-connect.");
 
                             sqlite_cmd.Reset();
                             sqlite_cmd.Dispose();
@@ -148,15 +148,15 @@ namespace plexCreditsDetect.Database
 
                         if ((SQLiteErrorCode)ex.ErrorCode != SQLiteErrorCode.Busy)
                         {
-                            Console.WriteLine("PlexDB.ExecuteDBCommand exception: " + ex.Message + "" +
+                            Logger.log.Error("PlexDB.ExecuteDBCommand exception: " + ex.Message + "" +
                                 " while executing SQL: " + cmd);
                             if (p != null && p.Count > 0)
                             {
-                                Console.WriteLine("With data: ");
+                                Logger.log.Error("With data: ");
 
                                 foreach (var x in p)
                                 {
-                                    Console.WriteLine($"{x.Key} = {x.Value}");
+                                    Logger.log.Error($"{x.Key} = {x.Value}");
                                 }
                             }
                             Program.Exit(-1);
@@ -172,7 +172,7 @@ namespace plexCreditsDetect.Database
         {
             if (recursionCount > 20)
             {
-                Console.WriteLine($"PlexDB not accessible. Retry count exceeded. Exiting.");
+                Logger.log.Error($"PlexDB not accessible. Retry count exceeded. Exiting.");
                 Program.Exit(-1);
                 return null;
             }
@@ -181,6 +181,7 @@ namespace plexCreditsDetect.Database
             var sqlite_cmd = sqlite_conn.CreateCommand();
             sqlite_cmd.CommandText = cmd;
             sqlite_cmd.CommandType = System.Data.CommandType.Text;
+            ret.command = sqlite_cmd;
 
             if (p != null)
             {
@@ -211,7 +212,7 @@ namespace plexCreditsDetect.Database
                 {
                     if (count >= 2 + recursionCount)
                     {
-                        Console.WriteLine($"PlexDB ExecuteDBQuery Database has been locked for a long time. Attempting to re-connect.");
+                        Logger.log.Error($"PlexDB ExecuteDBQuery Database has been locked for a long time. Attempting to re-connect.");
 
                         sqlite_cmd.Reset();
                         sqlite_cmd.Dispose();
@@ -226,15 +227,15 @@ namespace plexCreditsDetect.Database
                         sqlite_cmd.Reset();
                         sqlite_cmd.Dispose();
 
-                        Console.WriteLine("PlexDB.ExecuteDBQuery exception: " + ex.Message + "" +
+                        Logger.log.Error("PlexDB.ExecuteDBQuery exception: " + ex.Message + "" +
                             " while executing SQL: " + cmd);
                         if (p != null && p.Count > 0)
                         {
-                            Console.WriteLine("With data: ");
+                            Logger.log.Error("With data: ");
 
                             foreach (var x in p)
                             {
-                                Console.WriteLine($"{x.Key} = {x.Value}");
+                                Logger.log.Error($"{x.Key} = {x.Value}");
                             }
                         }
                         Program.Exit(-1);
@@ -252,7 +253,7 @@ namespace plexCreditsDetect.Database
                 if (sqlite_conn != null && sqlite_conn.State != System.Data.ConnectionState.Closed)
                 {
                     sqlite_conn.Close();
-                    sqlite_conn.Dispose();
+                    sqlite_conn.Dispose(); 
                 }
             }
             catch { }
@@ -271,7 +272,7 @@ namespace plexCreditsDetect.Database
                     {
                         if (secondTime)
                         {
-                            Console.WriteLine("Couldn't get intro tag_id from Plex Database. Make sure you've set up intro scanning and Plex has scanned at least one show. If you only have movie libraries, you'll need to create a TV Library temporarily with a show in it to get it to scan for intros once. These can be removed after it's successfully scanned for intros once.");
+                            Logger.log.Error("Couldn't get intro tag_id from Plex Database. Make sure you've set up intro scanning and Plex has scanned at least one show. If you only have movie libraries, you'll need to create a TV Library temporarily with a show in it to get it to scan for intros once. These can be removed after it's successfully scanned for intros once.");
 
                             Program.Exit(-1);
                             return -1;
@@ -287,7 +288,7 @@ namespace plexCreditsDetect.Database
 
                 if (TagID < 0)
                 {
-                    Console.WriteLine("Couldn't get intro tag_id from Plex Database. Make sure you've set up intro scanning and Plex has scanned at least one show. If you only have movie libraries, you'll need to create a TV Library temporarily with a show in it to get it to scan for intros once. These can be removed after it's successfully scanned for intros once.");
+                    Logger.log.Error("Couldn't get intro tag_id from Plex Database. Make sure you've set up intro scanning and Plex has scanned at least one show. If you only have movie libraries, you'll need to create a TV Library temporarily with a show in it to get it to scan for intros once. These can be removed after it's successfully scanned for intros once.");
                     Program.Exit(-1);
                     return -1;
                 }
@@ -734,7 +735,7 @@ namespace plexCreditsDetect.Database
                     }
                     catch (InvalidCastException ce)
                     {
-                        Console.WriteLine($"A library section has invalid information: {result.Get<string>("root_path")}");
+                        Logger.log.Error($"A library section has invalid information: {result.Get<string>("root_path")}");
                     }
                 }
             }

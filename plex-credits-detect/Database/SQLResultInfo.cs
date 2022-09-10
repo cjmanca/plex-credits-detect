@@ -6,6 +6,7 @@ namespace plexCreditsDetect.Database
     public class SQLResultInfo : IDisposable
     {
         public SQLiteDataReader reader = null;
+        public SQLiteCommand command = null;
 
         public Dictionary<string, int> columns = new Dictionary<string, int>();
 
@@ -154,8 +155,15 @@ namespace plexCreditsDetect.Database
             if (reader != null && !reader.IsClosed)
             { 
                 reader.Close();
+                reader.DisposeAsync();
             }
             reader = null;
+
+            if (command != null)
+            {
+                command.Dispose();
+            }
+            command = null;
         }
     }
 }

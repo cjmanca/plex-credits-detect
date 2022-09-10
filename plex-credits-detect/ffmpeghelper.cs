@@ -201,7 +201,7 @@ namespace plexCreditsDetect
             }
             if (endTimes.Count() != startTimes.Count())
             {
-                Console.WriteLine("DetectSilence - different start/end counts");
+                Logger.log.Error("DetectSilence - different start/end counts");
                 return segments;
             }
 
@@ -218,14 +218,14 @@ namespace plexCreditsDetect
 
                 if (seg.end < seg.start)
                 {
-                    Console.WriteLine("DetectSilence - end earlier than start:");
+                    Logger.log.Error("DetectSilence - end earlier than start:");
                     foreach(var item in endTimes)
                     {
-                        Console.WriteLine("Start: " + item);
+                        Logger.log.Error("Start: " + item);
                     }
                     foreach (var item in endTimes)
                     {
-                        Console.WriteLine("End: " + item);
+                        Logger.log.Error("End: " + item);
                     }
                     return segments;
                 }
@@ -351,7 +351,7 @@ namespace plexCreditsDetect
 
             if (output != "" || errors != "")
             {
-                Console.WriteLine("ffmpeg error: " + errors + " output: " + output);
+                Logger.log.Error("ffmpeg error: " + errors + " output: " + output);
                 return false;
             }
 
@@ -373,12 +373,12 @@ namespace plexCreditsDetect
             try
             {
                 if ((ret = ffmpeg.avformat_open_input(&ifmt_ctx, in_filename, null, null)) < 0) {
-                    Console.WriteLine($"Could not open input file '{in_filename}'");
+                    Logger.log.Error($"Could not open input file '{in_filename}'");
                     return false;
                 }
 
                 if ((ret = ffmpeg.avformat_find_stream_info(ifmt_ctx, null)) < 0) {
-                    Console.WriteLine("Failed to retrieve input stream information");
+                    Logger.log.Error("Failed to retrieve input stream information");
                     return false;
                 }
 
@@ -387,7 +387,7 @@ namespace plexCreditsDetect
                 ffmpeg.avformat_alloc_output_context2(&ofmt_ctx, null, null, out_filename);
                 if (ofmt_ctx == null)
                 {
-                    Console.WriteLine("Could not create output context");
+                    Logger.log.Error("Could not create output context");
                     ret = ffmpeg.AVERROR_UNKNOWN;
                     return false;
                 }
@@ -400,7 +400,7 @@ namespace plexCreditsDetect
                     AVStream* out_stream = ffmpeg.avformat_new_stream(ofmt_ctx, in_stream->codec->codec);
                     if (out_stream == null)
                     {
-                        Console.WriteLine("Failed allocating output stream");
+                        Logger.log.Error("Failed allocating output stream");
                         ret = ffmpeg.AVERROR_UNKNOWN;
                         return false;
                     }
@@ -408,7 +408,7 @@ namespace plexCreditsDetect
                     ret = ffmpeg.avcodec_copy_context(out_stream->codec, in_stream->codec);
                     if (ret < 0)
                     {
-                        Console.WriteLine("Failed to copy context from input to output stream codec context");
+                        Logger.log.Error("Failed to copy context from input to output stream codec context");
                         return false;
                     }
                     out_stream->codec->codec_tag = 0;
@@ -425,7 +425,7 @@ namespace plexCreditsDetect
                     ret = ffmpeg.avio_open(&ofmt_ctx->pb, out_filename, ffmpeg.AVIO_FLAG_WRITE);
                     if (ret < 0)
                     {
-                        Console.WriteLine($"Could not open output file '{out_filename}'");
+                        Logger.log.Error($"Could not open output file '{out_filename}'");
                         return false;
                     }
                 }
@@ -433,14 +433,14 @@ namespace plexCreditsDetect
                 ret = ffmpeg.avformat_write_header(ofmt_ctx, null);
                 if (ret < 0)
                 {
-                    Console.WriteLine("Error occurred when opening output file");
+                    Logger.log.Error("Error occurred when opening output file");
                     return false;
                 }
 
                 ret = ffmpeg.av_seek_frame(ifmt_ctx, -1, (long)(from_seconds * ffmpeg.AV_TIME_BASE), ffmpeg.AVSEEK_FLAG_ANY);
                 if (ret < 0)
                 {
-                    Console.WriteLine("Error seek");
+                    Logger.log.Error("Error seek");
                     return false;
                 }
 
@@ -504,7 +504,7 @@ namespace plexCreditsDetect
                     ret = ffmpeg.av_interleaved_write_frame(ofmt_ctx, &pkt);
                     if (ret < 0)
                     {
-                        Console.WriteLine("Error muxing packet");
+                        Logger.log.Error("Error muxing packet");
                         break;
                     }
 
@@ -526,7 +526,7 @@ namespace plexCreditsDetect
 
                 if (ret < 0 && ret != ffmpeg.AVERROR_EOF)
                 {
-                    Console.WriteLine($"Error occurred: {ret}");
+                    Logger.log.Error($"Error occurred: {ret}");
                 }
             }
             return true;
