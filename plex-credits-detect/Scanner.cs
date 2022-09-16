@@ -523,16 +523,12 @@ namespace plexCreditsDetect
                     if (plex_metadata_item_id != ep.metadata_item_id)
                     {
                         ep.metadata_item_id = plex_metadata_item_id;
-                        ep.Save();
                     }
                 }
 
-                if (ep.id != ep.idInLocalDB)
-                {
-                    ep.Save();
-                }
-
-
+                // make sure it's in the database
+                ep.Save();
+               
                 if (!doingReinsert)
                 {
                     db.DeleteEpisodeTimings(ep);
