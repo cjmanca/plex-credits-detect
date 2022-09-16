@@ -55,7 +55,6 @@ namespace plexCreditsDetect
             {
                 base.WriteLine(message);
                 Flush();
-                _logger.Rotate();
             }
         }
 
@@ -77,8 +76,22 @@ namespace plexCreditsDetect
             {
                 try
                 {
+                    Trace.Listeners.Remove(_listener);
+                }
+                catch { }
+                try
+                {
                     _listener.Flush();
+                }
+                catch { }
+                try
+                {
                     _listener.Close();
+                }
+                catch { }
+                try
+                {
+                    _listener.Dispose();
                 }
                 catch { }
                 _listener = null;
@@ -147,6 +160,8 @@ namespace plexCreditsDetect
                 Trace.WriteLine("");
                 return;
             }
+
+            Rotate();
 
             var logRow = ComposeLogRow(message, logType);
             //System.Diagnostics.Debug.WriteLine(logRow);
