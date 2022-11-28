@@ -18,6 +18,7 @@ namespace plexCreditsDetect
         public static Dictionary<string, string> paths = new Dictionary<string, string>();
         public static Dictionary<string, string> pathsPlexIndexed = new Dictionary<string, string>();
         public static string databasePath = "";
+        public static bool stopProgramAfterRun = false;
         public static string PlexDatabasePath = "";
         public static string TempDirectoryPath = "";
         public static string ffmpegPath = "";
@@ -249,6 +250,7 @@ namespace plexCreditsDetect
             if (isGlobalConfig) // only set these in the global config to avoid potential issues
             {
                 TryGet(data, isGlobalConfig, "paths", "databasePath", ref databasePath);
+                TryGet(data, isGlobalConfig, "config", "stopProgramAfterRun", ref stopProgramAfterRun);
                 TryGet(data, isGlobalConfig, "paths", "PlexDatabasePath", ref PlexDatabasePath);
                 TryGet(data, isGlobalConfig, "paths", "TempDirectoryPath", ref TempDirectoryPath);
                 TryGet(data, isGlobalConfig, "paths", "ffmpegPath", ref ffmpegPath);

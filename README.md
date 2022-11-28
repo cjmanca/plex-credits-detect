@@ -59,6 +59,11 @@ The ini would be read in this order:
 Each ini that is encountered will override any provided options from all previous files. All except the global fingerprint.ini are optional.
 
 ```dosini
+[config]
+stopProgramAfterRun = false
+# When false, it will automatically scan when a new file is detected in directories.
+# When true, it will stop program after first scan of all directories
+
 [paths]
 databasePath = C:\path\to\database\dir                        # Where to save the plex-credits-detect database
 PlexDatabasePath = C:\path\to\com.plexapp.plugins.library.db  # Full path to the Plex sqlite database
