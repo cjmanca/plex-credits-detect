@@ -1,4 +1,4 @@
-#End of life
+# End of life
 Since I heard that Plex had been working on their own version of credit detection which will soon make it's way into the official PMS, I stopped working on this, and will no longer provide updates.
 
 # plex-credits-detect
