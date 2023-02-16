@@ -133,7 +133,10 @@ namespace plexCreditsDetect
                 }
 
                 firstLoop = false;
-
+                if(Settings.stopProgramAfterRun)
+                {
+                    break;
+                }
                 Thread.Sleep(60000);
             }
 
